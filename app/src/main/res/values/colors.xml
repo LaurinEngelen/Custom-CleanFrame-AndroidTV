@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#000000</color>
+    <color name="dock_bg">#18181A</color>
+    <color name="dock_border">#2A2A2E</color>
+    <color name="glass_pill_bg">#252528</color>
+    <color name="glass_pill_focused">#FFFFFF</color>
+    <color name="glass_pill_border">#38383E</color>
+    <color name="tile_bg">#1E1E22</color>
+    <color name="tile_focus_border">#FFFFFF</color>
+    <color name="text_primary">#F5F5F7</color>
+    <color name="text_secondary">#8E8E93</color>
+    <color name="text_dark">#121212</color>
+    <color name="dropdown_bg">#1C1C1E</color>
+    <color name="dropdown_item_focus">#323236</color>
+</resources>

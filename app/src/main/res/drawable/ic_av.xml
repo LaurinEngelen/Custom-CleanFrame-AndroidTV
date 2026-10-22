@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <!-- Center Pin Tip -->
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M11,1.5h2c0.55,0 1,0.45 1,1V6h-4V2.5c0,-0.55 0.45,-1 1,-1z"/>
+  <!-- RCA Shield Collar -->
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M7,6.5h10c0.8,0 1.5,0.7 1.5,1.5v4.5c0,0.8 -0.7,1.5 -1.5,1.5h-0.5v7.5c0,0.8 -0.7,1.5 -1.5,1.5h-6c-0.8,0 -1.5,-0.7 -1.5,-1.5V14H7c-0.8,0 -1.5,-0.7 -1.5,-1.5V8c0,-0.8 0.7,-1.5 1.5,-1.5zM15.5,12.5v-4.5h-7v4.5H15.5z"/>
+  <!-- Grip Grooves -->
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M9,15.5h6v1.5H9zM9,18.5h6v1.5H9z"/>
+</vector>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/input_item_root"
+    android:layout_width="180dp"
+    android:layout_height="38dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:focusable="true"
+    android:clickable="true"
+    android:background="@drawable/sel_dropdown_item"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:layout_marginTop="3dp"
+    android:layout_marginBottom="3dp">
+
+    <ImageView
+        android:id="@+id/input_item_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:src="@drawable/ic_hdmi"
+        android:tint="@color/sel_dropdown_text"
+        android:duplicateParentState="true" />
+
+    <TextView
+        android:id="@+id/input_item_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:textColor="@color/sel_dropdown_text"
+        android:textSize="13sp"
+        android:fontFamily="@font/outfit"
+        android:duplicateParentState="true"
+        android:text="HDMI 1" />
+</LinearLayout>

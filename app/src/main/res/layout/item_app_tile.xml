@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:layout_marginStart="9dp"
+    android:layout_marginEnd="9dp">
+
+    <!-- Ambient Glow behind Card when Focused -->
+    <ImageView
+        android:id="@+id/card_ambient_glow"
+        android:layout_width="156dp"
+        android:layout_height="146dp"
+        android:layout_gravity="center"
+        android:src="@drawable/glow_card_ambient"
+        android:alpha="0"
+        android:scaleType="fitXY" />
+
+    <!-- Main Card Body (Squircle Card) -->
+    <FrameLayout
+        android:id="@+id/tile_frame"
+        android:layout_width="122dp"
+        android:layout_height="112dp"
+        android:layout_gravity="center"
+        android:focusable="true"
+        android:clickable="true"
+        android:background="@drawable/bg_card_unfocused"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="10dp">
+
+            <ImageView
+                android:id="@+id/app_logo"
+                android:layout_width="56dp"
+                android:layout_height="42dp"
+                android:scaleType="fitCenter"
+                android:adjustViewBounds="true" />
+
+            <TextView
+                android:id="@+id/app_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="7dp"
+                android:gravity="center"
+                android:singleLine="true"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:fontFamily="@font/outfit"
+                android:textStyle="bold"
+                android:textFontWeight="700"
+                android:shadowColor="#80000000"
+                android:shadowDx="0"
+                android:shadowDy="2"
+                android:shadowRadius="6"
+                android:letterSpacing="0.01" />
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>
