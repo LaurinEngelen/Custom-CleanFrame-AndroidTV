@@ -23,9 +23,9 @@ Ported from [Nathan Clark's CleanFrame](https://github.com/nthnclrk/CleanFrame) 
 
 ## 📸 Screen Preview
 
-| Home Screen (Dock & Clock) | Fullscreen Art Mode Screensaver (Zero UI) |
+| Home Screen (Wi-Fi Icon & Dock) | Fullscreen Art Mode Screensaver (Zero UI) |
 | :---: | :---: |
-| ![CleanFrame Home Dock](docs/screenshots/home-dock.png) | ![CleanFrame Art Mode](docs/screenshots/art-mode-misty.png) |
+| ![CleanFrame Home Dock](docs/screenshots/home-wifi-icon.png) | ![CleanFrame Art Mode](docs/screenshots/art-mode-misty.png) |
 
 | Artwork Rotation (Quiet Cove) | Direct Google Play Store Integration |
 | :---: | :---: |
@@ -34,6 +34,11 @@ Ported from [Nathan Clark's CleanFrame](https://github.com/nthnclrk/CleanFrame) 
 ---
 
 ## ✨ Key Features
+
+- **📶 Quick Wi-Fi & Ethernet Network Settings**:
+  - Dedicated status icon situated directly to the left of Art Mode.
+  - Clicking it immediately launches the native Android TV *Network & Internet* list for fast Wi-Fi connection switching and configuration.
+  - Automatically detects active network type (Wi-Fi vs Ethernet).
 
 - **🖼️ Full-Screen Art Mode Screensaver**:
   - Turns your TV into an authentic museum art piece on the wall.

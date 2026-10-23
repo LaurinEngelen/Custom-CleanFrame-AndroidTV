@@ -84,6 +84,29 @@
     }
   }
 
+  function network(done) {
+    if (!done) done = function () {};
+    if (hasBridge() && window.AndroidBridge.openNetworkSettings) {
+      try {
+        window.AndroidBridge.openNetworkSettings();
+        done(null);
+      } catch (err) {
+        done({ message: 'Cannot open Network settings', detail: String(err) });
+      }
+    } else {
+      done(null);
+    }
+  }
+
+  function getNetworkType() {
+    if (hasBridge() && window.AndroidBridge.getNetworkType) {
+      try {
+        return window.AndroidBridge.getNetworkType();
+      } catch (e) {}
+    }
+    return 'wifi';
+  }
+
   function apps(done) {
     if (!done) done = function () {};
     if (!hasBridge() || !window.AndroidBridge.getInstalledAppsJson) {
@@ -144,6 +167,8 @@
     art: art,
     home: home,
     settings: settings,
+    network: network,
+    getNetworkType: getNetworkType,
     apps: apps
   };
 }());

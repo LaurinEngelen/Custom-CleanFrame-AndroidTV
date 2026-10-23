@@ -7,6 +7,8 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.media.AudioAttributes;
 import android.media.SoundPool;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -170,6 +172,49 @@ public class MainActivity extends Activity {
                     Toast.makeText(MainActivity.this, "Cannot open Settings", Toast.LENGTH_SHORT).show();
                 }
             });
+        }
+
+        @JavascriptInterface
+        public void openNetworkSettings() {
+            runOnUiThread(() -> {
+                try {
+                    Intent intent = new Intent(Settings.ACTION_WIFI_SETTINGS);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                } catch (Throwable t1) {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Throwable t2) {
+                        try {
+                            Intent intent = new Intent(Settings.ACTION_SETTINGS);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        } catch (Throwable t3) {
+                            Toast.makeText(MainActivity.this, "Cannot open Network settings", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String getNetworkType() {
+            try {
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null) {
+                    NetworkInfo active = cm.getActiveNetworkInfo();
+                    if (active != null && active.isConnected()) {
+                        if (active.getType() == ConnectivityManager.TYPE_ETHERNET) {
+                            return "ethernet";
+                        } else if (active.getType() == ConnectivityManager.TYPE_WIFI) {
+                            return "wifi";
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+            return "wifi";
         }
 
         @JavascriptInterface
