@@ -1,4 +1,4 @@
-# 🖼️ CleanFrame for Android TV & Google TV
+# CleanFrame for Android TV & Google TV
 
 <p align="center">
   <b>A quiet, distraction-free home launcher inspired by Samsung The Frame — with Art Mode screensaver, remote D-Pad navigation, and DPR auto-scaling for Android TV.</b>
@@ -13,7 +13,7 @@
 
 ---
 
-## 📖 Overview
+## Overview
 
 **CleanFrame Android TV** is an open-source, ultra-minimalist home launcher designed specifically for Android TV and Google TV devices (such as Xiaomi Mi TV, Chromecast with Google TV, Sony Bravia, Nvidia Shield, and TCL TVs).
 
@@ -21,7 +21,7 @@ Ported from [Nathan Clark's CleanFrame](https://github.com/nthnclrk/CleanFrame) 
 
 ---
 
-## 📸 Screen Preview
+## Screen Preview
 
 | Home Screen (Wi-Fi Icon & Dock) | Fullscreen Art Mode Screensaver (Zero UI) |
 | :---: | :---: |
@@ -33,42 +33,42 @@ Ported from [Nathan Clark's CleanFrame](https://github.com/nthnclrk/CleanFrame) 
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-- **📶 Quick Wi-Fi & Ethernet Network Settings**:
+- **Quick Wi-Fi & Ethernet Network Settings**:
   - Dedicated status icon situated directly to the left of Art Mode.
   - Clicking it immediately launches the native Android TV *Network & Internet* list for fast Wi-Fi connection switching and configuration.
   - Automatically detects active network type (Wi-Fi vs Ethernet).
 
-- **🖼️ Full-Screen Art Mode Screensaver**:
+- **Full-Screen Art Mode Screensaver**:
   - Turns your TV into an authentic museum art piece on the wall.
   - **Zero UI**: All docks, status text, clocks, and overlays vanish into 100% pure art canvas.
-  - **Interactive Remote Controls**: Press **Left (◄)** or **Right (►)** on the TV remote to browse artworks; press any key to wake back up to the Home screen.
+  - **Interactive Remote Controls**: Press **Left** or **Right** on the TV remote to browse artworks; press any key to wake back up to the Home screen.
   - **Auto-Slideshow**: Seamlessly cycles through high-resolution curated gallery photos every 45 seconds.
   - **Auto-Idle Timer**: Automatically launches Art Mode screensaver after 3 minutes of inactivity on the Home screen.
 
-- **📐 Universal Display Scaling (720p / 1080p / 4K)**:
+- **Universal Display Scaling (720p / 1080p / 4K)**:
   - Engineered with real physical display geometry and `devicePixelRatio` compensation.
   - Fits 720p TVs (such as Xiaomi Mi TV 32" `tvdpi`), 1080p, and 4K UHD displays to the exact millimeter with zero cropping.
 
-- **🎮 Live TV & HDMI 1 Switching (PlayStation 5)**:
+- **Live TV & HDMI 1 Switching (PlayStation 5)**:
   - Integrates with Android's `TvInputManager` (`com.droidlogic.tvinput` / passthrough service) for one-click switching to your console or cable box.
 
-- **🛍️ Smart Google Play Store Redirection**:
+- **Smart Google Play Store Redirection**:
   - If a highlighted streaming app (Disney+, Prime Video, Stremio, Netflix, Spotify) is not yet installed, clicking its card directs straight to the official Google Play Store (`com.android.vending`) install page instead of showing an error.
   - Fixes regional package discrepancies (e.g., official global `com.disney.disneyplus`).
 
-- **🎨 Photographic Wallpapers & Frosted Glass**:
+- **Photographic Wallpapers & Frosted Glass**:
   - 15+ bundled offline high-resolution artworks (Misty Coast, Quiet Cove, Mountain Valley, Forest Mist, Golden Peak, Alpine Horizon, etc.).
   - Pre-rendered optic glass blur and adaptive contrast ink.
 
-- **🚀 Native Android TV Leanback Integration**:
+- **Native Android TV Leanback Integration**:
   - Declared as `CATEGORY_LEANBACK_LAUNCHER` and `CATEGORY_HOME`.
   - Responsive remote D-Pad navigation (Up, Down, Left, Right, OK, Back) with subtle audio tick feedback.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 flowchart TD
@@ -85,12 +85,13 @@ flowchart TD
 - `launch(packageName)`: Resolves package and launches Leanback / standard intent, or redirects to Play Store.
 - `openHdmi(port)`: Switches TV input to HDMI 1 via Android TV Input Framework.
 - `openSettings()`: Opens native Android TV system settings.
+- `openNetworkSettings()`: Opens native Android TV Network & Internet settings.
 - `enterArtMode()`: Triggers full-screen art screensaver.
 - `getInstalledAppsJson()`: Queries installed TV apps dynamically.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Android Studio Ladybug / Meerkat or Android SDK command-line tools.
@@ -98,7 +99,7 @@ flowchart TD
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/CleanFrame-AndroidTV.git
+git clone https://github.com/ravizikrillah/CleanFrame-AndroidTV.git
 cd CleanFrame-AndroidTV
 ```
 
@@ -123,7 +124,7 @@ adb shell am start -n com.example.tv/.MainActivity
 
 ---
 
-## 📺 Setting as Default Home Launcher
+## Setting as Default Home Launcher
 
 1. Press the **Home** button on your TV remote.
 2. Android TV will prompt you to select the default launcher.
@@ -133,7 +134,7 @@ adb shell am start -n com.example.tv/.MainActivity
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 CleanFrame-AndroidTV/
@@ -157,7 +158,7 @@ CleanFrame-AndroidTV/
 
 ---
 
-## 🙏 Credits & Acknowledgments
+## Credits & Acknowledgments
 
 - **[Nathan Clark](https://github.com/nthnclrk)**: Original creator of [CleanFrame for Samsung The Frame](https://github.com/nthnclrk/CleanFrame).
 - **Photography Credits**: Unsplash photographers referenced in `app/src/main/assets/cleanframe/assets/PHOTO-CREDIT.md`.
@@ -165,6 +166,6 @@ CleanFrame-AndroidTV/
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
