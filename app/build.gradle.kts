@@ -14,10 +14,8 @@ android {
         applicationId = "com.example.tv"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     buildTypes {
@@ -33,14 +31,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    packaging {
+        dex {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.material)
-    implementation("androidx.recyclerview:recyclerview:1.3.2")
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(libs.androidx.junit)
 }

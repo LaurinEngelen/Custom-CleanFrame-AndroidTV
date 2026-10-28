@@ -349,7 +349,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 
 /* Settings overview: each group carries one short, committed summary. */
 .settings-overview{position:absolute;left:112px;top:212px;width:1056px}
-.settings-group{width:100%;height:112px;padding:12px 32px 12px 28px;border-radius:20px;display:flex;align-items:center;justify-content:space-between;gap:32px;color:var(--ink);transition:background-color 140ms linear,color 140ms linear}
+.settings-group{width:100%;height:96px;padding:10px 32px 10px 28px;border-radius:20px;display:flex;align-items:center;justify-content:space-between;gap:32px;color:var(--ink);transition:background-color 140ms linear,color 140ms linear}
 .settings-group+.settings-group{margin-top:8px}
 .settings-group-copy{min-width:0;display:flex;flex-direction:column;gap:4px}
 .settings-group-name{font-size:40px;line-height:48px;font-weight:500;letter-spacing:-.6px}
@@ -532,7 +532,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .appearance{position:absolute;z-index:3;inset:0;color:var(--ink);pointer-events:none}
 .settings-back{position:absolute;left:124px;top:60px;pointer-events:auto}
 .settings-title{position:absolute;left:140px;top:132px;font-size:56px;line-height:68px;font-weight:500;letter-spacing:-1.6px}
-.appearance-rows{position:absolute;left:140px;top:244px;width:640px;pointer-events:auto}
+.appearance-rows{position:absolute;left:140px;top:244px;width:680px;max-height:700px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;pointer-events:auto}
+.appearance-rows::-webkit-scrollbar{display:none}
 .setting-section+.setting-section{margin-top:32px}
 .setting-label{margin-bottom:12px;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.2px;color:var(--mute)}
 .setting-options{display:flex;flex-direction:column;gap:4px}
@@ -556,7 +557,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .is-horizontal .setting-tick .ico{width:26px;height:26px}
 .section-material .setting-choice:last-child{flex:1.4}
 .detail-background .section-rotation .setting-choice{padding-left:128px}
-.detail-layout .setting-section+.setting-section,.detail-focus .setting-section+.setting-section{margin-top:64px}
+.detail-layout .setting-section+.setting-section{margin-top:28px}
+.detail-focus .setting-section+.setting-section{margin-top:64px}
 .detail-typography .setting-choice,.detail-rotation .setting-choice{min-height:88px}
 .detail-typography .appearance-rows,.detail-rotation .appearance-rows,.detail-samsung .appearance-rows{top:260px}
 .setting-choice.has-description{min-height:120px}
@@ -645,3 +647,23 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .is-font-switch .home .ph-name,.is-font-switch .home .clock,.is-font-switch .home .tile .label,.is-font-switch .home .u-label,.is-font-switch .home .app-focus-name,.is-font-switch .home .util-focus-label{animation:font-in 160ms linear}
 @keyframes font-in{from{opacity:0}}
 @media(prefers-reduced-motion:reduce){.is-font-switch .home .ph-name,.is-font-switch .home .clock,.is-font-switch .home .tile .label,.is-font-switch .home .u-label,.is-font-switch .home .app-focus-name,.is-font-switch .home .util-focus-label{animation-duration:120ms}}
+
+/* Scale and position customizations */
+.scale-compact .dock { transform: scale(0.8) !important; transform-origin: center bottom !important; }
+.scale-small .dock { transform: scale(0.65) !important; transform-origin: center bottom !important; }
+.pos-center .dock { top: 480px !important; }
+.pos-low .dock { top: 760px !important; }
+
+/* Native app icons display */
+.native-mark {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.native-mark img {
+  width: 76px !important;
+  height: 76px !important;
+  object-fit: contain !important;
+  border-radius: 16px !important;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.4)) !important;
+}

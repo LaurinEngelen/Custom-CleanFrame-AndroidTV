@@ -1,4 +1,4 @@
-/* CleanFrame Android TV Bridge. Replaces Tizen APIs with Android Native Bridge. */
+﻿/* CleanFrame Android TV Bridge. Replaces Tizen APIs with Android Native Bridge. */
 (function () {
   'use strict';
 
@@ -114,8 +114,7 @@
       var fallback = [
         { appId: 'com.google.android.youtube.tv', name: 'YouTube', brand: 'youtube', rank: 1 },
         { appId: 'com.netflix.ninja', name: 'Netflix', brand: 'netflix', rank: 2 },
-        { appId: 'input_hdmi1', name: 'PlayStation 5', brand: 'playstation', rank: 3 },
-        { appId: 'com.spotify.tv.android', name: 'Spotify', brand: 'spotify', rank: 4 },
+                { appId: 'com.spotify.tv.android', name: 'Spotify', brand: 'spotify', rank: 4 },
         { appId: 'com.disney.disneyplus', name: 'Disney+', brand: 'disneyplus', rank: 5 },
         { appId: 'com.stremio.one', name: 'Stremio', brand: 'stremio', rank: 6 },
         { appId: 'com.amazon.amazonvideo.livingroom', name: 'Prime Video', brand: 'primevideo', rank: 7 }
@@ -129,14 +128,7 @@
       var parsed = JSON.parse(raw);
       var result = [];
 
-      // Always prepend PlayStation 5 if not in android package manager
-      result.push({
-        appId: 'input_hdmi1',
-        name: 'PlayStation 5',
-        brand: 'playstation',
-        icon: '',
-        rank: 1
-      });
+      // PlayStation removed from apps
 
       if (Array.isArray(parsed)) {
         parsed.forEach(function (app, idx) {

@@ -42,10 +42,10 @@
     newsreader: { name: 'Newsreader', family: 'Study Newsreader', display: 400, ui: 400, clock: 400 }
   };
   var PRIVATE_FONTS = window.CleanFramePrivateFontIDs || [], fontMetrics = {}, unavailableFonts = {}, widthCache = {}, fontsReady = false;
-  var LOOK_KEYS = ['bg', 'layout', 'apps', 'font', 'controls', 'focus', 'material'];
-  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
-  var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
-  var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
+  var LOOK_KEYS = ['bg', 'layout', 'iconsize', 'dockpos', 'iconstyle', 'artmode', 'apps', 'font', 'controls', 'focus', 'material'];
+  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'], iconsize: ['normal', 'compact', 'small'], dockpos: ['bottom', 'center', 'low'], iconstyle: ['original', 'clean'], artmode: ['on', 'off'] };
+  var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material', iconsize: 'Icon Size', dockpos: 'Position', iconstyle: 'Icon Style', artmode: 'Art Mode' };
+  var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text', normal: 'Normal', compact: 'Kompakt (80%)', small: 'Klein (65%)', bottom: 'Unten', center: 'Mitte', low: 'Ganz unten', original: 'Original (Bunt)', clean: 'CleanFrame', on: 'Aktiv', off: 'Aus' };
   var UTIL = { wifi: ['Wi-Fi', 'wifi'], art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
@@ -86,7 +86,7 @@
     for (var i = 0; i < list.length; i++) if (list[i].toLowerCase() === v) return list[i];
     return fallback;
   }
-  function lookOf(c) { return { bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material }; }
+  function lookOf(c) { return { bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material, iconsize: c.iconsize, dockpos: c.dockpos, iconstyle: c.iconstyle, artmode: c.artmode }; }
   function materialApplies(c) { c = c || S.c; return c.bg === 'photo' && (c.layout === 'dock' || c.focus === 'glass'); }
   function derivedTheme() { return S.c.layout === 'list' ? 'list' : 'shore'; }
 
@@ -95,7 +95,7 @@
   function wall(id) { for (var i = 0; i < WALLS.length; i++) if (WALLS[i].id === id) return WALLS[i]; return null; }
   function wallIndex(id) { for (var i = 0; i < WALLS.length; i++) if (WALLS[i].id === id) return i; return 0; }
   function frostClass(w) { var i = [.12, .20, .30, .36, .44].indexOf(w.frostVeil); return i > 0 ? ' fv-' + (i + 1) : ''; }
-  function wallClasses(w) { return frostClass(w) + (w.listColumn ? ' lc-' + w.listColumn : '') + (w.dockQuiet ? ' db-quiet' : '') + (w.clockMist ? ' tl-mist' : ''); }
+  function wallClasses(w) { var extra = (S.c.iconsize ? ' scale-' + S.c.iconsize : '') + (S.c.dockpos ? ' pos-' + S.c.dockpos : ''); return frostClass(w) + (w.listColumn ? ' lc-' + w.listColumn : '') + (w.dockQuiet ? ' db-quiet' : '') + (w.clockMist ? ' tl-mist' : '') + extra; }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function without(list, id) { return list.filter(function (x) { return x !== id; }); }
   function same(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
@@ -141,6 +141,9 @@
       + (maskSupport ? '<span class="mk" style="' + st + ';-webkit-mask-image:url(' + ICONS + id + '.svg);mask-image:url(' + ICONS + id + '.svg)"></span>' : '<img alt="" src="' + ICONS + id + '.svg" style="' + st + '">') + '</span>';
   }
   function appMark(a, w, h, size) {
+    if (S.c.iconstyle !== 'clean' && a.icon) {
+      return '<span class="mark native-mark" style="width:' + w + 'px;height:' + h + 'px"><img alt="" src="' + esc(a.icon) + '"></span>';
+    }
     if (a.mark && (maskSupport || S.c.bg !== 'light')) return markHtml(a.brand || a.id, w, h, size);
     var words = a.name.split(/\s+/), letters = words[0].charAt(0) + (words.length > 1 ? words[1].charAt(0) : '');
     return '<span class="mark monogram' + (a.icon ? ' native-icon' : '') + '" style="width:' + w + 'px;height:' + h + 'px;font-size:' + Math.round(size * .65) + 'px"><span>' + esc(letters.toUpperCase()) + '</span>'
@@ -313,7 +316,7 @@
 
   /* ---------- Saved preferences ---------- */
   function safeId(id) { return typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,160}$/.test(id) && ['constructor', 'prototype', '__proto__'].indexOf(id) < 0; }
-  function safeIcon(path) { return typeof path === 'string' && path.length < 2048 && /^(?:\/[^\/]|file:\/\/\/|wgt-package:\/\/\/)/.test(path) ? path : ''; }
+  function safeIcon(path) { return typeof path === 'string' && path.length < 65536 && /^(?:\/[^\/]|file:\/\/\/|wgt-package:\/\/\/|data:image\/)/.test(path) ? path : ''; }
   function load() {
     var keys = [KEY, 'cleanframe.shore.v1'], raw, saved, i;
     for (i = 0; i < keys.length; i++) {
@@ -346,7 +349,11 @@
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
       font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
-      mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed')
+      mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed'),
+      iconsize: pick(modern.iconsize, LOOK_VALUES.iconsize, 'normal'),
+      dockpos: pick(modern.dockpos, LOOK_VALUES.dockpos, 'bottom'),
+      iconstyle: pick(modern.iconstyle, LOOK_VALUES.iconstyle, 'original'),
+      artmode: pick(modern.artmode, LOOK_VALUES.artmode, 'on')
     };
   }
   function serialise(c) {
@@ -363,7 +370,7 @@
   }
   function initialise() {
     var saved = load(), initial; S.c = clean(saved); initial = next(S.c.home.slice(), S.c.recent.slice());
-    initial.controls = 'icons'; initial.apps = 'both';
+    if (!saved) { initial.controls = 'icons'; initial.apps = 'both'; }
     S.stack = [{ id: 'home', f: { zone: 'apps', u: 0 } }];
     S.sel = S.c.lastApp; S.selIdx = S.c.home.indexOf(S.sel);
     if (saved && initial.mode === 'open') initial.wall = WALLS[(wallIndex(initial.wall) + 1) % WALLS.length].id;
@@ -493,12 +500,9 @@
 
   /* ---------- Navigation targets ---------- */
   function utils() {
-    var net = (window.FrameDevice && window.FrameDevice.getNetworkType) ? window.FrameDevice.getNetworkType() : 'wifi';
-    if (UTIL.wifi) {
-      UTIL.wifi[1] = (net === 'ethernet') ? 'ethernet' : 'wifi';
-      UTIL.wifi[0] = (net === 'ethernet') ? 'Ethernet' : 'Wi-Fi';
-    }
-    return ['wifi', 'art', 'apps', 'settings'];
+    var list = ['apps', 'settings'];
+    if (!S.c || S.c.artmode !== 'off') list.unshift('art');
+    return list;
   }
   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
   function axes() {
@@ -507,7 +511,7 @@
   }
   function utilAction(u) {
     if (u === 'wifi') perform('Network', FrameDevice.network);
-    else if (u === 'art') enterArtMode();
+    else if (u === 'art') enterArtMode(true);
     else if (u === 'apps') openApps();
     else openSettings();
   }
@@ -515,7 +519,7 @@
   function openSettings() { push({ id: 'settings', f: { id: S.settingsFocus } }); }
   function openAppearance(group) {
     var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus' }[group];
-    var action = S.detailFocus[group] || (axis ? 'choice.' + axis + '.' + S.c[axis] : group === 'rotation' ? 'rotation.' + S.c.mode : 'samsung.home');
+    var action = S.detailFocus[group] || (axis ? 'choice.' + axis + '.' + S.c[axis] : group === 'rotation' ? 'rotation.' + S.c.mode : 'launcher.projectivy');
     push({ id: 'appearance', group: group, f: { action: action } });
   }
   function openMessage(key) { push({ id: 'message', msg: key, f: { b: 0 } }); }
@@ -830,7 +834,8 @@
       { id: 'typography', label: 'Typography', value: FONTS[S.c.font].name },
       { id: 'focus', label: 'Focus', value: VALUE_NAMES[S.c.focus] + (materialApplies() ? ', ' + VALUE_NAMES[S.c.material] : '') },
       { id: 'editor', label: 'Apps on Home', value: n + (n === 1 ? ' app' : ' apps') },
-      { id: 'samsung', label: 'Samsung', value: 'Home and TV settings' }];
+      { id: 'samsung', label: 'Launcher', value: 'Projectivy & Standard' },
+      { id: 'ram', label: 'Arbeitsspeicher leeren', value: (window.AndroidBridge && window.AndroidBridge.getRamStatus) ? window.AndroidBridge.getRamStatus() : 'Alle Hintergrund-Apps beenden' }];
   }
   function settingsIds() { return settingsRows().map(function (r) { return r.id; }); }
   V.settings = {
@@ -848,9 +853,10 @@
   };
   function settingsOk(id) {
     if (id === 'editor') openEditor('settings');
+    else if (id === 'ram') { if (window.AndroidBridge && window.AndroidBridge.clearRamAndKillApps) window.AndroidBridge.clearRamAndKillApps(); render(); }
     else openAppearance(id);
   }
-  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Samsung' };
+  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Launcher' };
   function choice(axis, value, disabled) {
     return { action: axis === 'mode' ? 'rotation.' + value : 'choice.' + axis + '.' + value, axis: axis, value: value, disabled: !!disabled,
       label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
@@ -865,8 +871,12 @@
     ];
     if (t.group === 'layout') return [
       { id: 'layout', title: 'Layout', horizontal: true, items: options('layout', ['list', 'dock']) },
-      { id: 'apps', title: 'App display', horizontal: true, items: options('apps', ['text', 'icons', 'both']) },
-      { id: 'controls', title: 'Home controls', horizontal: true, items: options('controls', ['text', 'icons', 'both']) }
+      { id: 'iconsize', title: 'Icon-Größe', horizontal: true, items: options('iconsize', ['normal', 'compact', 'small']) },
+      { id: 'dockpos', title: 'Position', horizontal: true, items: options('dockpos', ['bottom', 'center', 'low']) },
+      { id: 'iconstyle', title: 'Icon-Stil', horizontal: true, items: options('iconstyle', ['original', 'clean']) },
+      { id: 'artmode', title: 'Art Mode', horizontal: true, items: options('artmode', ['on', 'off']) },
+      { id: 'apps', title: 'App-Beschriftung', horizontal: true, items: options('apps', ['text', 'icons', 'both']) },
+      { id: 'controls', title: 'Home Menüpunkte', horizontal: true, items: options('controls', ['text', 'icons', 'both']) }
     ];
     if (t.group === 'typography') return [{ id: 'font', title: '', items: options('font', LOOK_VALUES.font) }];
     if (t.group === 'focus') return [
@@ -876,9 +886,13 @@
     ];
     if (t.group === 'rotation') return [{ id: 'mode', title: '', items: options('mode', MODES.map(function (m) { return m.id; }), flat),
       reason: flat ? 'Choose Photo in Background to use rotation.' : 'Timed changes pause while Settings or another panel is open.' }];
-    return [{ id: 'samsung', title: '', items: [
-      { action: 'samsung.home', label: 'Samsung Home', description: 'Open Samsung’s Home screen' },
-      { action: 'samsung.settings', label: 'TV settings', description: 'Picture, sound and network settings' }
+    var isCleanDefault = (window.AndroidBridge && window.AndroidBridge.isDefaultLauncher) ? window.AndroidBridge.isDefaultLauncher() : true;
+    return [{ id: 'samsung', title: 'Launcher wechseln & Standard', items: [
+      { action: 'launcher.projectivy', label: 'Projectivy Launcher starten', description: 'Wechselt sofort zum zweiten Launcher (Projectivy)' },
+      { action: 'launcher.default.clean', label: 'Standard: CleanScreen' + (isCleanDefault ? ' (Aktiv)' : ''), description: 'CleanScreen dauerhaft beim Drücken der Home-Taste öffnen' },
+      { action: 'launcher.default.projectivy', label: 'Standard: Projectivy' + (!isCleanDefault ? ' (Aktiv)' : ''), description: 'Projectivy dauerhaft als Hauptscreen setzen (CleanScreen wird beendet)' },
+      { action: 'launcher.clearram', label: 'Arbeitsspeicher leeren (Alle Apps beenden)', description: 'Schließt laufende Hintergrund-Apps sofort und gibt RAM frei' },
+      { action: 'launcher.settings', label: 'Android TV Einstellungen', description: 'System-, Bild-, Ton- und Netzwerkeinstellungen öffnen' }
     ] }];
   }
   function detailRows(t) {
@@ -923,8 +937,35 @@
     else if (item.axis) { patch[item.axis] = item.value; setLook(patch, { row: item.axis }); }
     else if (item.action === 'background.wallpaper') openWallpaper();
     else if (item.action === 'background.rotation') openAppearance('rotation');
-    else if (item.action === 'samsung.home') perform('Samsung Home', FrameDevice.home);
-    else if (item.action === 'samsung.settings') perform('TV settings', FrameDevice.settings);
+    else if (item.action === 'launcher.projectivy') {
+      if (window.AndroidBridge && window.AndroidBridge.launchProjectivy) {
+        window.AndroidBridge.launchProjectivy();
+      } else if (window.AndroidBridge && window.AndroidBridge.launchApp) {
+        window.AndroidBridge.launchApp('com.spocky.projengmenu');
+      }
+    }
+    else if (item.action === 'launcher.default.clean') {
+      if (window.AndroidBridge && window.AndroidBridge.setDefaultLauncher) {
+        window.AndroidBridge.setDefaultLauncher('clean');
+      }
+      render();
+    }
+    else if (item.action === 'launcher.default.projectivy') {
+      if (window.AndroidBridge && window.AndroidBridge.setDefaultLauncher) {
+        window.AndroidBridge.setDefaultLauncher('projectivy');
+      }
+    }
+    else if (item.action === 'launcher.clearram') {
+      if (window.AndroidBridge && window.AndroidBridge.clearRamAndKillApps) {
+        window.AndroidBridge.clearRamAndKillApps();
+      }
+      render();
+    }
+    else if (item.action === 'launcher.settings') {
+      if (window.AndroidBridge && window.AndroidBridge.openSettings) {
+        window.AndroidBridge.openSettings();
+      }
+    }
   }
   V.appearance = {
     norm: function (t) {
@@ -1012,8 +1053,9 @@
     }
   }
 
-  function enterArtMode() {
+  function enterArtMode() { if (S.c.artmode === 'off') return;
     if (top() && top().id === 'artmode') return;
+    if (window.AndroidBridge && window.AndroidBridge.setKeepScreenOn) { try { window.AndroidBridge.setKeepScreenOn(true); } catch (e) {} }
     var curr = S.shown ? S.shown.wall : S.c.wall;
     artIndex = 0;
     for (var i = 0; i < WALLS.length; i++) {
@@ -1027,6 +1069,7 @@
 
   function exitArtMode() {
     stopArtSlideshow();
+    if (window.AndroidBridge && window.AndroidBridge.setKeepScreenOn) { try { window.AndroidBridge.setKeepScreenOn(false); } catch (e) {} }
     var el = $('artCaption');
     if (el) el.classList.remove('show');
     pop();
@@ -1036,8 +1079,9 @@
 
   function resetIdleTimer() {
     clearTimeout(idleTimer);
+    if (S.c && S.c.artmode === 'off') return;
     idleTimer = setTimeout(function () {
-      if (top() && top().id === 'home') {
+      if (top() && top().id === 'home' && (!S.c || S.c.artmode !== 'off')) {
         enterArtMode();
       }
     }, 180000); // 3 minutes idle
@@ -1244,7 +1288,16 @@
       x = 280; placement = phFields[photoPlateIndex]._placement;
       y = placement.y + placement.height / 2 - 24;
     } else {
-      x = clamp(dockAnchorCenter - width / 2, 140, 1780 - width); y = 932;
+      var scaleFactor = S.c.iconsize === 'small' ? 0.65 : S.c.iconsize === 'compact' ? 0.8 : 1;
+      var scaledCenter = 960 + (dockAnchorCenter - 960) * scaleFactor;
+      x = clamp(scaledCenter - width / 2, 140, 1780 - width);
+      if (S.c.dockpos === 'center') {
+        y = 674;
+      } else if (S.c.dockpos === 'low') {
+        y = 952;
+      } else {
+        y = 932;
+      }
     }
     appFocusName.style.left = x + 'px'; appFocusName.style.top = (y + fontShift('primary', S.c.layout === 'list' ? 40 : 36)) + 'px';
     appFocusName.className = 'app-focus-name is-on';
@@ -1518,6 +1571,19 @@
     setHTML(appearanceStatus, status);
     hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to ' + (t.group === 'rotation' ? 'Background' : 'Settings') : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : selected.action === 'background.wallpaper' ? 'Choose a wallpaper' : selected.action === 'background.rotation' ? 'Choose a rotation interval' : 'Open on the TV';
     setHTML(appearanceDesc, hint ? '<span class="remote-key">OK</span><span>' + esc(hint) + '</span>' : '');
+    var focusedChoice = appearanceRows ? appearanceRows.querySelector('.setting-choice.is-focus') : null;
+    if (focusedChoice && appearanceRows) {
+      var sec = focusedChoice.closest ? focusedChoice.closest('.setting-section') : focusedChoice.parentNode.parentNode;
+      var targetEl = sec || focusedChoice;
+      var topPos = targetEl.offsetTop;
+      var botPos = topPos + targetEl.offsetHeight;
+      var viewH = appearanceRows.clientHeight || 680;
+      if (topPos < appearanceRows.scrollTop) {
+        appearanceRows.scrollTop = Math.max(0, topPos - 16);
+      } else if (botPos > appearanceRows.scrollTop + viewH) {
+        appearanceRows.scrollTop = botPos - viewH + 24;
+      }
+    }
   }
   function renderWallpaper(t) {
     V.wallpaper.norm(t);
@@ -1991,6 +2057,6 @@
   /* ---------- Start ---------- */
   cueL.innerHTML = icon('left'); cueR.innerHTML = icon('right');
   initialise();
-  setLook({ controls: 'icons', apps: 'both' }, { transient: false, startup: true });
+  setLook({}, { transient: false, startup: true });
   norm(); render(); fit(); focusStage(); updateClock(); syncRotation(); resetIdleTimer();
 })();
