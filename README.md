@@ -1,171 +1,134 @@
-# CleanFrame for Android TV & Google TV
+# CleanScreen Home for Android TV & Google TV
 
 <p align="center">
-  <b>A quiet, distraction-free home launcher inspired by Samsung The Frame — with Art Mode screensaver, remote D-Pad navigation, and DPR auto-scaling for Android TV.</b>
+  <b>Ein ruhiger, ablenkungsfreier und hochperformanter 100% nativer Android-Launcher im Samsung The Frame-Stil — mit Art-Mode-Galerie, Apple Liquid Glass-Dock, D-Pad-Navigation und vollständiger visueller Anpassung.</b>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Android%20TV%20%7C%20Google%20TV-3DDC84?logo=android&logoColor=white" alt="Platform">
+  <img src="https://img.shields.io/badge/Architecture-100%25%20Native%20Android%20(No%20WebView)-blue" alt="Architecture">
   <img src="https://img.shields.io/badge/Min%20SDK-28%20(Android%209%2B)-blue" alt="Min SDK">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
-  <img src="https://img.shields.io/badge/Resolution-720p%20%7C%201080p%20%7C%204K-purple" alt="Resolutions">
+  <img src="https://img.shields.io/badge/Resolution-720p%20%7C%201080p%20%7C%204K%20UHD-purple" alt="Resolutions">
 </p>
 
 ---
 
-## Overview
+## 🌟 Übersicht / Overview
 
-**CleanFrame Android TV** is an open-source, ultra-minimalist home launcher designed specifically for Android TV and Google TV devices (such as Xiaomi Mi TV, Chromecast with Google TV, Sony Bravia, Nvidia Shield, and TCL TVs).
+**CleanScreen Home** ist ein minimalistischer, schneller und eleganter Home-Launcher für Android TV- und Google TV-Geräte (z. B. Xiaomi Mi TV, Chromecast mit Google TV, Sony Bravia, Nvidia Shield, TCL).
 
-Ported from [Nathan Clark's CleanFrame](https://github.com/nthnclrk/CleanFrame) (originally built for Samsung The Frame on Tizen), this project brings the same serene aesthetic, high-res photographic art gallery, and zero-distraction interface to the Android TV ecosystem.
+Ursprünglich inspiriert von Nathan Clarks *CleanFrame* für Samsung The Frame, wurde diese Version von Grund auf als **100% native Android-App** (ohne WebView) neu entwickelt. Sie bietet maximale Reaktionsgeschwindigkeit, butterweiche 60-FPS-Navigation auf Android TV 9+ und tiefgehende Anpassungsmöglichkeiten.
 
----
-
-## Screen Preview
-
-| Home Screen (Wi-Fi Icon & Dock) | Fullscreen Art Mode Screensaver (Zero UI) |
-| :---: | :---: |
-| ![CleanFrame Home Dock](docs/screenshots/home-wifi-icon.png) | ![CleanFrame Art Mode](docs/screenshots/art-mode-misty.png) |
-
-| Artwork Rotation (Quiet Cove) | Direct Google Play Store Integration |
-| :---: | :---: |
-| ![CleanFrame Art Gallery](docs/screenshots/art-mode-cove.png) | ![Google Play Store](docs/screenshots/playstore-disney.png) |
+> **Branches:**
+> - **`main`**: Die moderne, 100% native Android-Version (höchste Performance, 60 FPS, Apple Liquid Glass, vollständige Live-Regler).
+> - **`webview`**: Die vorherige HTML5/WebView-Version (als Archiv gesichert).
 
 ---
 
-## Key Features
+## 🚀 Hauptfunktionen / Key Features
 
-- **Quick Wi-Fi & Ethernet Network Settings**:
-  - Dedicated status icon situated directly to the left of Art Mode.
-  - Clicking it immediately launches the native Android TV *Network & Internet* list for fast Wi-Fi connection switching and configuration.
-  - Automatically detects active network type (Wi-Fi vs Ethernet).
+### 1. 100% Native Performance & Hardware-Beschleunigung
+- **Keine WebView-Lags:** Vollständig native Android `Canvas`- und GPU-Pipeline.
+- **Asynchrones Bild- und Textur-Caching:** Non-blocking `LruCache` für Wallpapers, Schriftarten und Texturen – keine Ruckler beim Karussell-Start.
+- **Anti-Aliasing ohne Kantenflimmern:** Verwendet moderne `BitmapShader` anstelle von unsauberen `clipPath`-Operationen für makellos abgerundete Ecken.
 
-- **Full-Screen Art Mode Screensaver**:
-  - Turns your TV into an authentic museum art piece on the wall.
-  - **Zero UI**: All docks, status text, clocks, and overlays vanish into 100% pure art canvas.
-  - **Interactive Remote Controls**: Press **Left** or **Right** on the TV remote to browse artworks; press any key to wake back up to the Home screen.
-  - **Auto-Slideshow**: Seamlessly cycles through high-resolution curated gallery photos every 45 seconds.
-  - **Auto-Idle Timer**: Automatically launches Art Mode screensaver after 3 minutes of inactivity on the Home screen.
+### 2. Apple Liquid Glass & Dock-Stile
+- **Apple Glas mit 3D-Wölbung:** Echte optische Linsenbrechung (`applyMaterialLensMatrix`), 3D-Glaskuppel-Glanz und duale Fresnel-Spiegelkanten.
+- **Klassisches Frosted Glass:** Sanfte, matte Milchglas-Optik mit konfigurierbarer Trübung (*Frost*, *Weichzeichner*, *Klares Glas*).
+- **Fokus-Vergrößerung:** Ausgewählte Apps vergrößern sich beim Navigieren butterweich und heben sich dezent ab.
+- **Minimal-Modus:** Type-Stil ohne Dock-Container für maximale Bildfokussierung.
 
-- **Universal Display Scaling (720p / 1080p / 4K)**:
-  - Engineered with real physical display geometry and `devicePixelRatio` compensation.
-  - Fits 720p TVs (such as Xiaomi Mi TV 32" `tvdpi`), 1080p, and 4K UHD displays to the exact millimeter with zero cropping.
+### 3. Vollständige Live-Layout-Steuerung
+- **Stufenlose Schieberegler mit Sofort-Vorschau:**
+  - **Horizontale Position X** (`0%` bis `100%`, zentriert auf `50%`)
+  - **Vertikale Position Y** (`10%` bis `98%`, Standard `85%`)
+  - **Dock- & Kachel-Größe** (`50%` bis `140%`)
+  - **Icon-Größe im Karussell** (`50%` bis `150%`)
+- **App-Beschriftung:** Wählbar zwischen *Nur Icons*, *Icons & Text* oder *Nur Text*.
+- **Freistehende Beschriftung bei „Nur Icons“:** Name der aktiven App ohne störende Hintergrundform – wahlweise frei positionierbar **Unten (unter Dock)** oder **Oben (über Dock)**.
 
-- **Live TV & HDMI 1 Switching (PlayStation 5)**:
-  - Integrates with Android's `TvInputManager` (`com.droidlogic.tvinput` / passthrough service) for one-click switching to your console or cable box.
+### 4. Frei anpassbare Uhrzeit & Kunstwerk-Anzeige
+- **Position:** *Oben links*, *Oben Mitte*, *Mitte (Groß)*, *Unten links*, *Unten rechts* oder *Aus*.
+- **Größe:** Stufenlos per Schieberegler von `50%` bis `250%`.
+- **Schriftarten:** *Manrope* (Modern), *Geist* (Clean Tech), *Newsreader* (Serif), *Digital* (Monospace), *Thin* (Ultra-Light).
+- **Schriftstile:** *Normal*, *Fett*, *Kursiv*, *Fett & Kursiv*, *Kontur (Outline)*.
+- **Glas-Kapsel:** Freistehend oder eingefasst in eine *Apple Liquid Glass-* bzw. *Frosted Glass-* Kapsel.
+- **Kunstwerk-Titel:** Anzeige des aktuellen Bildnamens neben oder unter der Uhrzeit ein-/ausschaltbar.
 
-- **Smart Google Play Store Redirection**:
-  - If a highlighted streaming app (Disney+, Prime Video, Stremio, Netflix, Spotify) is not yet installed, clicking its card directs straight to the official Google Play Store (`com.android.vending`) install page instead of showing an error.
-  - Fixes regional package discrepancies (e.g., official global `com.disney.disneyplus`).
+### 5. Fullscreen Art Mode Screensaver
+- Verwandelt den Fernseher in ein echtes Kunstwerk an der Wand.
+- **100% UI-frei:** Alle Docks, Buttons und Texte werden im Art Mode ausgeblendet.
+- **Manuelles Blättern:** Mit **◄ Links / Rechts ►** auf der Fernbedienung durch kuratierte Kunstwerke stöbern.
+- **Automatischer Ruhezustand:** Wechselt nach 3 Minuten Inaktivität auf dem Homescreen automatisch in den Art Mode.
 
-- **Photographic Wallpapers & Frosted Glass**:
-  - 15+ bundled offline high-resolution artworks (Misty Coast, Quiet Cove, Mountain Valley, Forest Mist, Golden Peak, Alpine Horizon, etc.).
-  - Pre-rendered optic glass blur and adaptive contrast ink.
+### 6. Autostart & Intelligente Launcher-Verwaltung
+- **Keine störenden Channels beim TV-Neustart:** Ein nativer `BootReceiver` und der integrierte Barrierefreiheitsdienst sichern den direkten Start von CleanScreen nach dem Einschalten.
+- **Dynamischer Launcher-Wechsler:** Erkennt automatisch andere installierte Launcher auf dem Gerät und ermöglicht den nahtlosen Wechsel.
+- **Standard-App-Zuweisung:** CleanScreen lässt sich dauerhaft als Standard-Launcher für die Home-Taste festlegen.
 
-- **Native Android TV Leanback Integration**:
-  - Declared as `CATEGORY_LEANBACK_LAUNCHER` and `CATEGORY_HOME`.
-  - Responsive remote D-Pad navigation (Up, Down, Left, Right, OK, Back) with subtle audio tick feedback.
+### 7. App-Manager & Homescreen-Bereinigung
+- **Bloatware-frei:** Keine ungenutzten Dummy-Apps mehr.
+- **Einfaches Sortieren & Entfernen:**
+  - Direkt auf dem Homescreen: **OK lange gedrückt halten** → **◄ / ►** zum Verschieben, **▼ Runter** zum Entfernen.
+  - Im Einstellungsmenü: Übersichtliche Zwei-Spalten-Verwaltung mit dediziertem *Entfernen*-Button für jede App.
+- **Arbeitsspeicher-Bereinigung:** Integrierte 1-Klick-Funktion zum Beenden von Hintergrund-Apps zur RAM-Freigabe.
 
 ---
 
-## Architecture
+## 🛠️ Architektur / Architecture
 
 ```mermaid
 flowchart TD
-    Remote[TV Remote Control D-Pad] -->|dispatchKeyEvent| NativeHost[MainActivity.java]
-    NativeHost -->|Audio Effects| SoundPool[Navigation Sound Tick]
-    NativeHost -->|evaluateJavascript| Bridge[device.js / AndroidBridge]
-    Bridge -->|State Machine & DOM| WebEngine[CleanFrame Web Engine]
-    WebEngine -->|Click Uninstalled App| PlayStore[Google Play Store]
-    WebEngine -->|Select HDMI / PS5| TvInput[TvInputHelper / HDMI1]
-    WebEngine -->|Select Art Mode| ArtMode[Full-Screen Art Screensaver]
+    Remote[TV Fernbedienung / D-Pad] -->|dispatchKeyEvent| MainActivity[MainActivity.java]
+    MainActivity -->|Direct Native Render 60 FPS| NativeView[NativeHomeView.java]
+    NativeView -->|GPU Shader Pipeline| Canvas[Android Hardware Canvas]
+    NativeView -->|LruCache & Async Thread| Assets[CleanAssets.java]
+    Assets -->|Preload Wallpapers & Fonts| AssetStorage[Local & Packed Assets]
+    Boot[TV Boot / Einschalten] -->|BOOT_COMPLETED| BootReceiver[BootReceiver.java]
+    BootReceiver -->|Bring to Front| MainActivity
+    Accessibility[TvKeyAccessibilityService] -->|Source / Home Keys| MainActivity
 ```
-
-### Bridge Methods (`AndroidBridge`)
-- `launch(packageName)`: Resolves package and launches Leanback / standard intent, or redirects to Play Store.
-- `openHdmi(port)`: Switches TV input to HDMI 1 via Android TV Input Framework.
-- `openSettings()`: Opens native Android TV system settings.
-- `openNetworkSettings()`: Opens native Android TV Network & Internet settings.
-- `enterArtMode()`: Triggers full-screen art screensaver.
-- `getInstalledAppsJson()`: Queries installed TV apps dynamically.
 
 ---
 
-## Getting Started
+## 📦 Installation & Build
 
-### Prerequisites
-- Android Studio Ladybug / Meerkat or Android SDK command-line tools.
-- A TV running Android 9.0 (Pie) or newer with ADB debugging enabled.
+### Voraussetzungen
+- Android TV oder Google TV ab **Android 9.0 (API 28)**.
+- Entwickleroptionen & **USB-/Netzwerk-Debugging** auf dem Fernseher aktiviert.
 
-### 1. Clone the Repository
+### 1. Repository klonen
 ```bash
-git clone https://github.com/ravizikrillah/CleanFrame-AndroidTV.git
-cd CleanFrame-AndroidTV
+git clone https://github.com/LaurinEngelen/Custom-CleanFrame-AndroidTV.git
+cd Custom-CleanFrame-AndroidTV
 ```
 
-### 2. Build the Debug APK
+### 2. APK kompilieren
 ```bash
 ./gradlew assembleDebug
 ```
-The compiled APK will be generated at:
+Das fertige APK liegt unter:
 `app/build/outputs/apk/debug/app-debug.apk`
 
-### 3. Install on TV via ADB
-Connect to your TV over Wi-Fi or USB:
+### 3. Auf den Fernseher übertragen & installieren
 ```bash
-adb connect <YOUR_TV_IP>:5555
+adb connect <TV-IP-ADRESSE>:5555
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### 4. Launch the App
+### 4. Starten & Berechtigungen einrichten
 ```bash
+adb shell pm grant com.example.tv android.permission.READ_LOGS
+adb shell settings put secure enabled_accessibility_services com.example.tv/com.example.tv.TvKeyAccessibilityService
+adb shell settings put secure accessibility_enabled 1
 adb shell am start -n com.example.tv/.MainActivity
 ```
 
 ---
 
-## Setting as Default Home Launcher
+## 📄 Lizenz
 
-1. Press the **Home** button on your TV remote.
-2. Android TV will prompt you to select the default launcher.
-3. Choose **CleanFrame** and select **Always**.
-
-*(To revert at any time, go to TV Settings → Apps → Special app access → Default home app, or uninstall the APK via `adb uninstall com.example.tv`)*.
-
----
-
-## Project Structure
-
-```
-CleanFrame-AndroidTV/
-├── app/
-│   ├── src/main/
-│   │   ├── AndroidManifest.xml          # Leanback launcher declaration
-│   │   ├── java/com/example/tv/
-│   │   │   ├── MainActivity.java        # Core Activity & JavaScript bridge
-│   │   │   └── TvInputHelper.java       # HDMI Input switching logic
-│   │   ├── assets/cleanframe/
-│   │   │   ├── index.html               # CleanFrame TV stage markup
-│   │   │   ├── main.js                  # Scaling, state machine & Art Mode
-│   │   │   ├── device.js                # Android TV hardware bridge
-│   │   │   ├── style.css                # Visual design, transitions & typography
-│   │   │   └── assets/                  # Wallpapers, fonts & icons
-│   │   └── res/                         # Android icons, sounds & layouts
-├── gradle/                              # Gradle wrapper and version catalogs
-├── build.gradle.kts                     # Root build configuration
-└── settings.gradle.kts                  # Project settings
-```
-
----
-
-## Credits & Acknowledgments
-
-- **[Nathan Clark](https://github.com/nthnclrk)**: Original creator of [CleanFrame for Samsung The Frame](https://github.com/nthnclrk/CleanFrame).
-- **Photography Credits**: Unsplash photographers referenced in `app/src/main/assets/cleanframe/assets/PHOTO-CREDIT.md`.
-- **Fonts**: Manrope, Geist, and Newsreader (Open Font License).
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
+Dieses Projekt ist unter der [MIT License](LICENSE) lizenziert.
+Basiert auf dem Designkonzept von [Nathan Clark (CleanFrame)](https://github.com/nthnclrk/CleanFrame).
+Fotografien bereitgestellt via Unsplash (Credits siehe `PHOTO-CREDIT.md`).
