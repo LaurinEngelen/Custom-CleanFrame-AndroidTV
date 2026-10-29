@@ -322,22 +322,130 @@ public class NativeHomeView extends View {
         }
     }
 
-    private void drawTopBar(Canvas canvas, int inkColor, int muteColor) {
-        // Top-Left Clock + Wallpaper Title
-        String timeStr = clockFmt.format(new Date());
-        textPaint.setColor(inkColor);
-        textPaint.setTextSize(44f);
-        canvas.drawText(timeStr, 112f, 106f, textPaint);
+    private final RectF clockPillRect = new RectF();
 
-        if ("photo".equals(config.bg)) {
-            float timeW = textPaint.measureText(timeStr);
-            CleanConfig.WallInfo wi = CleanConfig.getWallInfo(config.wall);
-            textPaint.setColor(muteColor);
-            textPaint.setTextSize(26f);
-            canvas.drawText("·   " + wi.name, 112f + timeW + 20f, 102f, textPaint);
+    private void drawClockWidget(Canvas canvas, int inkColor, int muteColor) {
+        if ("off".equals(config.clockpos)) return;
+
+        String timeStr = clockFmt.format(new Date());
+        float cScale = config.clockScale / 100f;
+
+        Typeface clockTf = CleanAssets.getFont(activity, config.clockfont);
+        boolean isBold = "bold".equals(config.clockstyle)
+                || "bolditalic".equals(config.clockstyle)
+                || "outline".equals(config.clockstyle);
+        boolean isItalic = "italic".equals(config.clockstyle) || "bolditalic".equals(config.clockstyle);
+        boolean isOutline = "outline".equals(config.clockstyle);
+
+        textPaint.setTypeface(clockTf);
+        textPaint.setFakeBoldText(isBold);
+        textPaint.setTextSkewX(isItalic ? -0.20f : 0f);
+        float timeSize = 46f * cScale;
+        textPaint.setTextSize(timeSize);
+
+        float timeW = textPaint.measureText(timeStr);
+        Paint.FontMetrics timeFm = textPaint.getFontMetrics();
+        float timeCapH = -timeFm.ascent * 0.76f;
+
+        boolean showTitle = "photo".equals(config.bg) && !"off".equals(config.clocktitle);
+        String titleStr = showTitle ? CleanConfig.getWallInfo(config.wall).name : "";
+        boolean stackedCenter = "center".equals(config.clockpos);
+
+        float subSize = Math.max(18f, 26f * Math.min(1.45f, Math.max(0.8f, cScale)));
+        float subW = 0f;
+        if (showTitle) {
+            textPaint.setFakeBoldText(false);
+            textPaint.setTextSkewX(0f);
+            textPaint.setTextSize(subSize);
+            subW = textPaint.measureText(stackedCenter ? titleStr : ("·   " + titleStr));
         }
 
-        // Top-Right Quiet Utility Icons (matching .quiet-utils in style.css: no surrounding box!)
+        float gap = showTitle ? (20f * Math.min(1.3f, cScale)) : 0f;
+        float contentW = stackedCenter ? Math.max(timeW, subW) : (timeW + (showTitle ? (gap + subW) : 0f));
+        float contentH = stackedCenter && showTitle ? (timeCapH + subSize + 18f * cScale) : Math.max(timeCapH, subSize);
+
+        float padX = 28f * Math.min(1.35f, Math.max(0.85f, cScale));
+        float padY = 20f * Math.min(1.35f, Math.max(0.85f, cScale));
+
+        float boxLeft;
+        float boxTop;
+        if ("topcenter".equals(config.clockpos)) {
+            boxLeft = 960f - contentW * 0.5f;
+            boxTop = 64f;
+        } else if ("center".equals(config.clockpos)) {
+            boxLeft = 960f - contentW * 0.5f;
+            boxTop = 340f - contentH * 0.5f;
+        } else if ("bottomleft".equals(config.clockpos)) {
+            boxLeft = 112f;
+            boxTop = 964f - contentH;
+        } else if ("bottomright".equals(config.clockpos)) {
+            boxLeft = 1808f - contentW;
+            boxTop = 964f - contentH;
+        } else {
+            // Default: "topleft"
+            boxLeft = 112f;
+            boxTop = 64f;
+        }
+
+        // Draw optional Glass Pill around Clock ("apple" = curved Apple glass, "frost" = classic frosted glass)
+        if (!"off".equals(config.clockglass)) {
+            clockPillRect.set(
+                    boxLeft - padX,
+                    boxTop - padY,
+                    boxLeft + contentW + padX,
+                    boxTop + contentH + padY
+            );
+            float pillRadius = clockPillRect.height() * 0.5f;
+            drawGlassBox(canvas, clockPillRect, pillRadius, "apple".equals(config.clockglass));
+        }
+
+        // Draw Clock Time
+        textPaint.setTypeface(clockTf);
+        textPaint.setFakeBoldText(isBold);
+        textPaint.setTextSkewX(isItalic ? -0.20f : 0f);
+        textPaint.setTextSize(timeSize);
+        textPaint.setColor(inkColor);
+        if (isOutline) {
+            textPaint.setStyle(Paint.Style.STROKE);
+            textPaint.setStrokeWidth(Math.max(1.8f, 2.2f * cScale));
+        } else {
+            textPaint.setStyle(Paint.Style.FILL);
+        }
+
+        if ("off".equals(config.clockglass) && !isLightBg()) {
+            textPaint.setShadowLayer(12f, 0f, 3f, 0x88080A0E);
+        }
+
+        float timeX = stackedCenter ? (boxLeft + (contentW - timeW) * 0.5f) : boxLeft;
+        float timeBaselineY = boxTop + timeCapH;
+        canvas.drawText(timeStr, timeX, timeBaselineY, textPaint);
+
+        // Reset outline/bold/italic before drawing subtitle & rest of UI
+        textPaint.setStyle(Paint.Style.FILL);
+        textPaint.setFakeBoldText(false);
+        textPaint.setTextSkewX(0f);
+
+        if (showTitle) {
+            textPaint.setColor(muteColor);
+            textPaint.setTextSize(subSize);
+            if (stackedCenter) {
+                float sx = boxLeft + (contentW - subW) * 0.5f;
+                float sy = timeBaselineY + subSize + 14f * cScale;
+                canvas.drawText(titleStr, sx, sy, textPaint);
+            } else {
+                canvas.drawText("·   " + titleStr, timeX + timeW + gap, timeBaselineY - 3f * cScale, textPaint);
+            }
+        }
+
+        textPaint.clearShadowLayer();
+        textPaint.setTypeface(CleanAssets.getFont(activity, config.font));
+    }
+
+    private void drawTopBar(Canvas canvas, int inkColor, int muteColor) {
+        // 1. Draw customizable Clock Widget
+        drawClockWidget(canvas, inkColor, muteColor);
+
+        // 2. Top-Right Quiet Utility Icons (matching .quiet-utils in style.css: no surrounding box!)
         List<String> utils = getUtilityItems();
         if (utilIndex >= utils.size()) utilIndex = Math.max(0, utils.size() - 1);
 
@@ -535,7 +643,7 @@ public class NativeHomeView extends View {
                 canvas.scale(itemZoom, itemZoom, centerX, tileCenterY);
             }
 
-            float iconBox = Math.round((iconsOnly ? 76f : 72f) * scale);
+            float iconBox = Math.round((iconsOnly ? 76f : 72f) * scale * (config.iconScale / 100f));
             float iconCenterY = iconsOnly
                     ? (tileTopY + tileH * 0.5f + liftY)
                     : (tileTopY + tileH * 0.38f + liftY);
@@ -644,7 +752,7 @@ public class NativeHomeView extends View {
 
             float xOffset = 140f;
             if (!"text".equals(config.apps)) {
-                drawAppIcon(canvas, app, xOffset + 36f, y + rowH * 0.5f, 64f, fg);
+                drawAppIcon(canvas, app, xOffset + 36f, y + rowH * 0.5f, 64f * (config.iconScale / 100f), fg);
                 xOffset += 92f;
             }
             if (!"icons".equals(config.apps)) {
@@ -680,14 +788,16 @@ public class NativeHomeView extends View {
 
     private final RectF bevelRect = new RectF();
 
+    private void drawDockGlassContainer(Canvas canvas, RectF rect, float radius) {
+        drawGlassBox(canvas, rect, radius, "on".equals(config.glasscurve));
+    }
+
     /**
      * Draws a smooth, anti-aliased Frosted Glass or Apple Curved Liquid Glass container using BitmapShader.
      */
-    private void drawDockGlassContainer(Canvas canvas, RectF rect, float radius) {
-        boolean appleCurved = "on".equals(config.glasscurve);
-
+    private void drawGlassBox(Canvas canvas, RectF rect, float radius, boolean appleCurved) {
         if (appleCurved) {
-            // 1. Soft floating elevation shadow underneath the curved glass dock
+            // 1. Soft floating elevation shadow underneath the curved glass container
             bevelRect.set(rect.left + 4f, rect.top + 8f, rect.right - 4f, rect.bottom + 10f);
             paint.setShader(null);
             paint.setColor(0x2E000000);
@@ -731,7 +841,7 @@ public class NativeHomeView extends View {
             canvas.drawRoundRect(rect, radius, radius, paint);
 
             // 3. Horizontal Radial Arch Highlight across the top center of the dock
-            float archRadius = Math.max(220f, rect.width() * 0.62f);
+            float archRadius = Math.max(160f, rect.width() * 0.62f);
             RadialGradient archGrad = new RadialGradient(
                     rect.centerX(), rect.top - rect.height() * 0.15f, archRadius,
                     new int[]{0x30FFFFFF, 0x10FFFFFF, 0x00FFFFFF},
@@ -837,23 +947,20 @@ public class NativeHomeView extends View {
     // ---------------- SETTINGS SHEETS ----------------
 
     private String[][] getMainSettingsRows() {
-        String wallLabel = "photo".equals(config.bg)
+        String wallLabel = ("photo".equals(config.bg)
                 ? CleanConfig.getWallInfo(config.wall).name
-                : ("light".equals(config.bg) ? "Hell" : "Dunkel");
-        String layoutLabel = ("dock".equals(config.layout) ? "Dock" : "Liste")
-                + " · Größe " + config.dockScale + "% · X:" + config.dockPosX + "% Y:" + config.dockPosY + "%";
-        String fontLabel = "geist".equals(config.font) ? "Geist" : "newsreader".equals(config.font) ? "Newsreader" : "Manrope";
+                : ("light".equals(config.bg) ? "Hell" : "Dunkel"))
+                + " · Art Mode " + ("on".equals(config.artmode) ? "Ein" : "Aus")
+                + " · Uhr " + config.clockScale + "%";
         String dockLabel = ("glass".equals(config.focus)
-                ? ("on".equals(config.glasscurve) ? "Apple Glas (Wölbung)" : "Glas (" + config.material + ")")
+                ? ("on".equals(config.glasscurve) ? "Apple Glas" : "Glas")
                 : "Minimal")
-                + ("on".equals(config.focuszoom) ? " · Fokus-Zoom Ein" : "");
+                + " · Dock " + config.dockScale + "% · Icons " + config.iconScale + "%";
         String appsCount = config.homeApps.size() + " Apps (Hinzufügen / Entfernen)";
         String ramStatus = activity.getRamStatusText();
 
         return new String[][]{
-                {"background", "Hintergrund", wallLabel},
-                {"layout", "Layout, Position & Art Mode", layoutLabel},
-                {"typography", "Schriftart", fontLabel},
+                {"background", "Hintergrund & Uhrzeit", wallLabel},
                 {"focus", "Dock", dockLabel},
                 {"editor", "Apps auf dem Homescreen", appsCount},
                 {"samsung", "Launcher & System", "Projectivy & Standard-App"},
@@ -863,7 +970,7 @@ public class NativeHomeView extends View {
 
     private void drawSheetBackdrop(Canvas canvas, String title, String subtitle, boolean compactLivePreview) {
         if (compactLivePreview) {
-            // Compact top-right floating card so the entire Homescreen & App Carousel are visible in Live View!
+            // Compact top-right floating card so the entire Homescreen, Clock & App Carousel are visible in Live View!
             dstRect.set(1000f, 36f, 1884f, 640f);
             paint.setColor(0xD8101318);
             canvas.drawRoundRect(dstRect, 32f, 32f, paint);
@@ -907,9 +1014,9 @@ public class NativeHomeView extends View {
     private void drawSettingsSheet(Canvas canvas) {
         drawSheetBackdrop(canvas, "Einstellungen", "Änderungen werden sofort live übernommen", false);
         String[][] rows = getMainSettingsRows();
-        float startY = 190f;
-        float rowH = 104f;
-        float gap = 12f;
+        float startY = 200f;
+        float rowH = 112f;
+        float gap = 16f;
 
         for (int i = 0; i < rows.length; i++) {
             boolean focused = (i == settingsRow);
@@ -921,11 +1028,11 @@ public class NativeHomeView extends View {
 
             textPaint.setColor(focused ? Color.parseColor("#111316") : Color.WHITE);
             textPaint.setTextSize(32f);
-            canvas.drawText(rows[i][1], 1076f, y + 44f, textPaint);
+            canvas.drawText(rows[i][1], 1076f, y + 48f, textPaint);
 
             textPaint.setColor(focused ? Color.parseColor("#4B525C") : 0xFF9AA4B2);
             textPaint.setTextSize(23f);
-            canvas.drawText(rows[i][2], 1076f, y + 80f, textPaint);
+            canvas.drawText(rows[i][2], 1076f, y + 84f, textPaint);
 
             CleanAssets.drawUiIcon(activity, canvas, "right", 1816f, y + rowH * 0.5f, 24f,
                     focused ? Color.parseColor("#111316") : 0xFF9AA4B2, strokePaint);
@@ -971,63 +1078,79 @@ public class NativeHomeView extends View {
     private List<DetailRowSpec> getDetailSpecs(String group) {
         List<DetailRowSpec> list = new ArrayList<>();
         if ("background".equals(group)) {
-            list.add(new DetailRowSpec("Hintergrund-Typ", "bg",
-                    new String[]{"photo", "dark", "light"},
-                    new String[]{"Foto", "Dunkel", "Hell"}));
             list.add(new DetailRowSpec("Kunstwerk / Wallpaper", "action.wallpaper",
                     new String[]{"open"},
                     new String[]{"Wallpaper auswählen (" + CleanConfig.getWallInfo(config.wall).name + ")"}));
+            list.add(new DetailRowSpec("Hintergrund-Typ", "bg",
+                    new String[]{"photo", "dark", "light"},
+                    new String[]{"Foto", "Dunkel", "Hell"}));
+            list.add(new DetailRowSpec("Art Mode (Nur CleanScreen)", "artmode",
+                    new String[]{"on", "off"},
+                    new String[]{"Aktiv", "Aus"}));
             list.add(new DetailRowSpec("Wallpaper-Wechsel", "mode",
                     new String[]{"fixed", "open", "5", "15", "60"},
                     new String[]{"Fest", "Bei Start", "5 Min", "15 Min", "60 Min"}));
-        } else if ("layout".equals(group)) {
+            list.add(new DetailRowSpec("Uhrzeit-Position", "clockpos",
+                    new String[]{"topleft", "topcenter", "center", "bottomleft", "bottomright", "off"},
+                    new String[]{"Oben links", "Oben Mitte", "Mitte", "Unten links", "Unten rechts", "Aus"}));
+            list.add(new DetailRowSpec("Uhrzeit-Größe (◄ Kleiner / Größer ►)", "slider.clockScale",
+                    50, 250, config.clockScale,
+                    config.clockScale == 100 ? "100% (Standard)" : config.clockScale + "%"));
+            list.add(new DetailRowSpec("Uhrzeit-Glas-Stil", "clockglass",
+                    new String[]{"off", "apple", "frost"},
+                    new String[]{"Ohne Hintergrund", "Apple Glas (Wölbung)", "Glas (Flach)"}));
+            list.add(new DetailRowSpec("Uhrzeit-Schriftart", "clockfont",
+                    new String[]{"manrope", "geist", "newsreader", "mono", "thin"},
+                    new String[]{"Manrope", "Geist", "Newsreader", "Digital", "Thin"}));
+            list.add(new DetailRowSpec("Uhrzeit-Schriftstil", "clockstyle",
+                    new String[]{"normal", "bold", "italic", "bolditalic", "outline"},
+                    new String[]{"Normal", "Fett", "Kursiv", "Fett & Kursiv", "Kontur"}));
+            list.add(new DetailRowSpec("Kunstwerk-Name neben Uhrzeit", "clocktitle",
+                    new String[]{"on", "off"},
+                    new String[]{"Anzeigen", "Ausblenden"}));
+        } else if ("focus".equals(group) || "layout".equals(group) || "typography".equals(group)) {
             list.add(new DetailRowSpec("Horizontale Position (X-Achse  ·  ◄ Links / Rechts ►)", "slider.dockPosX",
                     0, 100, config.dockPosX,
                     config.dockPosX == 50 ? "50% (Zentriert)" : config.dockPosX + "%"));
             list.add(new DetailRowSpec("Vertikale Position (Y-Achse  ·  ◄ Hoch / Runter ►)", "slider.dockPosY",
                     10, 98, config.dockPosY,
                     config.dockPosY == 85 ? "85% (Standard)" : config.dockPosY + "%"));
-            list.add(new DetailRowSpec("Karussell- & Icon-Größe (◄ Kleiner / Größer ►)", "slider.dockScale",
+            list.add(new DetailRowSpec("Karussell-Größe (◄ Kleiner / Größer ►)", "slider.dockScale",
                     50, 140, config.dockScale,
-                    config.dockScale + "%"));
-            list.add(new DetailRowSpec("Icon-Stil", "iconstyle",
-                    new String[]{"clean", "original"},
-                    new String[]{"CleanFrame (Original)", "Android-Icons (Bunt)"}));
-            list.add(new DetailRowSpec("App-Beschriftung", "apps",
-                    new String[]{"icons", "both", "text"},
-                    new String[]{"Nur Icons", "Icons & Text", "Nur Text"}));
-            list.add(new DetailRowSpec("App-Name Position (bei „Nur Icons“)", "labelpos",
-                    new String[]{"bottom", "top"},
-                    new String[]{"Unten (unter Dock)", "Oben (über Dock)"}));
-            list.add(new DetailRowSpec("Art Mode (Nur CleanScreen)", "artmode",
-                    new String[]{"on", "off"},
-                    new String[]{"Aktiv", "Aus"}));
-            list.add(new DetailRowSpec("Menüpunkte oben rechts", "controls",
-                    new String[]{"icons", "both", "text"},
-                    new String[]{"Nur Icons", "Icons & Text", "Nur Text"}));
-            list.add(new DetailRowSpec("Ansicht", "layout",
-                    new String[]{"dock", "list"},
-                    new String[]{"Dock (Karussell)", "Liste (Links)"}));
-        } else if ("typography".equals(group)) {
-            list.add(new DetailRowSpec("Schriftart", "font",
-                    new String[]{"manrope", "geist", "newsreader"},
-                    new String[]{"Manrope / Outfit", "Geist Sans", "Newsreader Serif"}));
-        } else if ("focus".equals(group)) {
+                    config.dockScale == 100 ? "100% (Standard)" : config.dockScale + "%"));
+            list.add(new DetailRowSpec("Icon-Größe im Karussell (◄ Kleiner / Größer ►)", "slider.iconScale",
+                    50, 150, config.iconScale,
+                    config.iconScale == 100 ? "100% (Standard)" : config.iconScale + "%"));
             list.add(new DetailRowSpec("Ausgewählte App vergrößern", "focuszoom",
                     new String[]{"on", "off"},
                     new String[]{"Aktiv (Leicht größer)", "Aus (Gleiche Größe)"}));
             list.add(new DetailRowSpec("Glas-Effekt & Wölbung", "glasscurve",
                     new String[]{"on", "off"},
                     new String[]{"Apple Glas (Mit Wölbung)", "Klassisch (Flach)"}));
-            list.add(new DetailRowSpec("App-Name Position (bei „Nur Icons“)", "labelpos",
-                    new String[]{"bottom", "top"},
-                    new String[]{"Unten (unter Dock)", "Oben (über Dock)"}));
             list.add(new DetailRowSpec("Dock- & Fokus-Stil", "focus",
                     new String[]{"glass", "type"},
                     new String[]{"Glas-Dock", "Minimal (Ohne Dock)"}));
             list.add(new DetailRowSpec("Glas-Trübung", "material",
                     new String[]{"frost", "soft", "tint"},
                     new String[]{"Frost", "Weichzeichner", "Klares Glas"}));
+            list.add(new DetailRowSpec("App-Beschriftung", "apps",
+                    new String[]{"icons", "both", "text"},
+                    new String[]{"Nur Icons", "Icons & Text", "Nur Text"}));
+            list.add(new DetailRowSpec("App-Name Position (bei „Nur Icons“)", "labelpos",
+                    new String[]{"bottom", "top"},
+                    new String[]{"Unten (unter Dock)", "Oben (über Dock)"}));
+            list.add(new DetailRowSpec("Icon-Stil", "iconstyle",
+                    new String[]{"clean", "original"},
+                    new String[]{"CleanFrame (Original)", "Android-Icons (Bunt)"}));
+            list.add(new DetailRowSpec("Schriftart", "font",
+                    new String[]{"manrope", "geist", "newsreader"},
+                    new String[]{"Manrope / Outfit", "Geist Sans", "Newsreader Serif"}));
+            list.add(new DetailRowSpec("Menüpunkte oben rechts", "controls",
+                    new String[]{"icons", "both", "text"},
+                    new String[]{"Nur Icons", "Icons & Text", "Nur Text"}));
+            list.add(new DetailRowSpec("Ansicht", "layout",
+                    new String[]{"dock", "list"},
+                    new String[]{"Dock (Karussell)", "Liste (Links)"}));
         } else if ("samsung".equals(group)) {
             boolean isCleanDef = activity.isDefaultLauncher();
             list.add(new DetailRowSpec("Zweiter Launcher", "action.projectivy",
@@ -1060,6 +1183,11 @@ public class NativeHomeView extends View {
         if ("material".equals(axis)) return config.material;
         if ("focuszoom".equals(axis)) return config.focuszoom;
         if ("glasscurve".equals(axis)) return config.glasscurve;
+        if ("clockpos".equals(axis)) return config.clockpos;
+        if ("clockfont".equals(axis)) return config.clockfont;
+        if ("clockstyle".equals(axis)) return config.clockstyle;
+        if ("clockglass".equals(axis)) return config.clockglass;
+        if ("clocktitle".equals(axis)) return config.clocktitle;
         if ("action.default".equals(axis)) return activity.isDefaultLauncher() ? "clean" : "projectivy";
         return "";
     }
@@ -1087,23 +1215,30 @@ public class NativeHomeView extends View {
         }
         else if ("focuszoom".equals(axis)) config.focuszoom = val;
         else if ("glasscurve".equals(axis)) config.glasscurve = val;
+        else if ("clockpos".equals(axis)) config.clockpos = val;
+        else if ("clockfont".equals(axis)) {
+            config.clockfont = val;
+            CleanAssets.getFont(activity, val);
+        }
+        else if ("clockstyle".equals(axis)) config.clockstyle = val;
+        else if ("clockglass".equals(axis)) config.clockglass = val;
+        else if ("clocktitle".equals(axis)) config.clocktitle = val;
         config.save(activity);
     }
 
     private void drawDetailSheet(Canvas canvas) {
-        boolean isLivePreview = "layout".equals(currentDetailGroup) || "focus".equals(currentDetailGroup);
-        String title = "layout".equals(currentDetailGroup) ? "Layout & Live-Position"
-                : "background".equals(currentDetailGroup) ? "Hintergrund"
-                : "typography".equals(currentDetailGroup) ? "Schriftart"
-                : "focus".equals(currentDetailGroup) ? "Dock" : "Launcher & System";
-        String sub = "layout".equals(currentDetailGroup)
-                ? "◄ ► Regler live verschieben  ·  OK = Standardwert  ·  Zurück = Menü"
-                : "◄ ► Option wählen  ·  OK = Übernehmen  ·  Zurück = Hauptmenü";
-        drawSheetBackdrop(canvas, title, sub, isLivePreview);
-
+        boolean isLivePreview = "focus".equals(currentDetailGroup)
+                || "background".equals(currentDetailGroup)
+                || "layout".equals(currentDetailGroup);
         List<DetailRowSpec> specs = getDetailSpecs(currentDetailGroup);
         if (detailRow >= specs.size()) detailRow = specs.size() - 1;
         if (detailRow < 0) detailRow = 0;
+
+        String baseTitle = "background".equals(currentDetailGroup) ? "Hintergrund & Uhrzeit"
+                : "focus".equals(currentDetailGroup) ? "Dock" : "Launcher & System";
+        String title = baseTitle + "  (" + (detailRow + 1) + "/" + specs.size() + ")";
+        String sub = "▲ ▼ Zeile wählen  ·  ◄ ► Anpassen  ·  OK = Auswählen/Standard  ·  Zurück = Menü";
+        drawSheetBackdrop(canvas, title, sub, isLivePreview);
 
         int maxVisibleRows = isLivePreview ? 4 : 6;
         int firstRow = Math.max(0, Math.min(detailRow - (maxVisibleRows / 2), Math.max(0, specs.size() - maxVisibleRows)));
@@ -1557,6 +1692,10 @@ public class NativeHomeView extends View {
                     config.dockPosY = Math.max(10, Math.min(98, config.dockPosY + dir * 2));
                 } else if ("slider.dockScale".equals(cur.axis)) {
                     config.dockScale = Math.max(50, Math.min(140, config.dockScale + dir * 5));
+                } else if ("slider.iconScale".equals(cur.axis)) {
+                    config.iconScale = Math.max(50, Math.min(150, config.iconScale + dir * 5));
+                } else if ("slider.clockScale".equals(cur.axis)) {
+                    config.clockScale = Math.max(50, Math.min(250, config.clockScale + dir * 5));
                 }
                 config.save(activity);
                 focusInitialized = false;
@@ -1732,6 +1871,8 @@ public class NativeHomeView extends View {
                     if ("slider.dockPosX".equals(spec.axis)) config.dockPosX = 50;
                     else if ("slider.dockPosY".equals(spec.axis)) config.dockPosY = 85;
                     else if ("slider.dockScale".equals(spec.axis)) config.dockScale = 100;
+                    else if ("slider.iconScale".equals(spec.axis)) config.iconScale = 100;
+                    else if ("slider.clockScale".equals(spec.axis)) config.clockScale = 100;
                     config.save(activity);
                     focusInitialized = false;
                     invalidate();

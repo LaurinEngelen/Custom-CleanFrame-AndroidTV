@@ -211,6 +211,16 @@ public class CleanAssets {
 
     public static Typeface getFont(Context ctx, String fontId) {
         if (fontId == null) fontId = "manrope";
+        if ("mono".equals(fontId)) return Typeface.MONOSPACE;
+        if ("thin".equals(fontId)) {
+            Typeface t = fontCache.get("thin");
+            if (t == null) {
+                t = Typeface.create("sans-serif-thin", Typeface.NORMAL);
+                if (t == null) t = Typeface.DEFAULT;
+                fontCache.put("thin", t);
+            }
+            return t;
+        }
         Typeface existing = fontCache.get(fontId);
         if (existing != null) return existing;
 
@@ -230,6 +240,8 @@ public class CleanAssets {
 
     public static Typeface loadFontSync(Context ctx, String fontId) {
         if (fontId == null) fontId = "manrope";
+        if ("mono".equals(fontId)) return Typeface.MONOSPACE;
+        if ("thin".equals(fontId)) return getFont(ctx, "thin");
         if (fontCache.containsKey(fontId)) return fontCache.get(fontId);
 
         String relPath;

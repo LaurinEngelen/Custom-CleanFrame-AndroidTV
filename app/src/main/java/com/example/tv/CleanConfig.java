@@ -58,6 +58,7 @@ public class CleanConfig {
     public int dockPosX = 50;            // 0..100 (50 = centered)
     public int dockPosY = 85;            // 10..98 (85 = standard bottom)
     public int dockScale = 100;          // 50..140 (100 = 100%)
+    public int iconScale = 100;          // 50..150 (100 = 100% icon size in carousel)
     public String iconstyle = "clean";   // clean (CleanFrame SVG vectors), original (Android app icons)
     public String artmode = "on";        // on, off
     public String apps = "both";         // icons, both, text
@@ -68,6 +69,15 @@ public class CleanConfig {
     public String material = "frost";    // soft, frost, tint
     public String focuszoom = "on";      // on (slightly larger on focus), off
     public String glasscurve = "on";     // on (Apple curved liquid glass), off (flat classic glass)
+
+    // Clock customization options (in Background settings)
+    public String clockpos = "topleft";  // topleft, topcenter, center, bottomleft, bottomright, off
+    public int clockScale = 100;         // 50..250 (100 = 100%)
+    public String clockfont = "manrope"; // manrope, geist, newsreader, mono, thin
+    public String clockstyle = "normal"; // normal, bold, italic, bolditalic, outline
+    public String clockglass = "off";    // off, apple, frost
+    public String clocktitle = "on";     // on, off (show artwork title next to clock)
+
     public final List<String> homeApps = new ArrayList<>();
 
     public static CleanConfig load(Context ctx) {
@@ -80,6 +90,7 @@ public class CleanConfig {
         c.dockPosX = clamp(sp.getInt("dockPosX", 50), 0, 100);
         c.dockPosY = clamp(sp.getInt("dockPosY", 85), 10, 98);
         c.dockScale = clamp(sp.getInt("dockScale", 100), 50, 140);
+        c.iconScale = clamp(sp.getInt("iconScale", 100), 50, 150);
         c.iconstyle = sp.getString("iconstyle", "clean");
         c.artmode = sp.getString("artmode", "on");
         c.apps = sp.getString("apps", "both");
@@ -90,6 +101,12 @@ public class CleanConfig {
         c.material = sp.getString("material", "frost");
         c.focuszoom = sp.getString("focuszoom", "on");
         c.glasscurve = sp.getString("glasscurve", "on");
+        c.clockpos = sp.getString("clockpos", "topleft");
+        c.clockScale = clamp(sp.getInt("clockScale", 100), 50, 250);
+        c.clockfont = sp.getString("clockfont", "manrope");
+        c.clockstyle = sp.getString("clockstyle", "normal");
+        c.clockglass = sp.getString("clockglass", "off");
+        c.clocktitle = sp.getString("clocktitle", "on");
 
         String homeJson = sp.getString("homeApps", null);
         if (homeJson != null) {
@@ -121,6 +138,7 @@ public class CleanConfig {
         ed.putInt("dockPosX", dockPosX);
         ed.putInt("dockPosY", dockPosY);
         ed.putInt("dockScale", dockScale);
+        ed.putInt("iconScale", iconScale);
         ed.putString("iconstyle", iconstyle);
         ed.putString("artmode", artmode);
         ed.putString("apps", apps);
@@ -131,6 +149,12 @@ public class CleanConfig {
         ed.putString("material", material);
         ed.putString("focuszoom", focuszoom);
         ed.putString("glasscurve", glasscurve);
+        ed.putString("clockpos", clockpos);
+        ed.putInt("clockScale", clockScale);
+        ed.putString("clockfont", clockfont);
+        ed.putString("clockstyle", clockstyle);
+        ed.putString("clockglass", clockglass);
+        ed.putString("clocktitle", clocktitle);
 
         JSONArray arr = new JSONArray();
         for (String pkg : homeApps) {
