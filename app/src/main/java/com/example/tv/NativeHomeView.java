@@ -963,7 +963,7 @@ public class NativeHomeView extends View {
                 {"background", "Hintergrund & Uhrzeit", wallLabel},
                 {"focus", "Dock", dockLabel},
                 {"editor", "Apps auf dem Homescreen", appsCount},
-                {"samsung", "Launcher & System", "Projectivy & Standard-App"},
+                {"samsung", "Launcher & System", "Autostart & Standard-App"},
                 {"ram", "Arbeitsspeicher leeren", ramStatus}
         };
     }
@@ -1153,15 +1153,27 @@ public class NativeHomeView extends View {
                     new String[]{"Dock (Karussell)", "Liste (Links)"}));
         } else if ("samsung".equals(group)) {
             boolean isCleanDef = activity.isDefaultLauncher();
-            list.add(new DetailRowSpec("Zweiter Launcher", "action.projectivy",
-                    new String[]{"launch"},
-                    new String[]{"Projectivy Launcher jetzt starten"}));
+            list.add(new DetailRowSpec("Autostart bei TV-Neustart (Keine Channels)", "autostart",
+                    new String[]{"on", "off"},
+                    new String[]{"Aktiv (Sofort CleanScreen)", "Aus"}));
             list.add(new DetailRowSpec("Dauerhafter Standard-Launcher (Home-Taste)", "action.default",
-                    new String[]{"clean", "projectivy"},
+                    new String[]{"clean", "system"},
                     new String[]{
                             "CleanScreen" + (isCleanDef ? " (Aktiv)" : ""),
-                            "Projectivy" + (!isCleanDef ? " (Aktiv)" : "")
+                            "Anderer Launcher / System"
                     }));
+
+            List<MainActivity.LauncherInfo> otherLaunchers = activity.getOtherInstalledLaunchers();
+            if (!otherLaunchers.isEmpty()) {
+                String[] pkgs = new String[otherLaunchers.size()];
+                String[] labels = new String[otherLaunchers.size()];
+                for (int i = 0; i < otherLaunchers.size(); i++) {
+                    pkgs[i] = otherLaunchers.get(i).packageName;
+                    labels[i] = otherLaunchers.get(i).label;
+                }
+                list.add(new DetailRowSpec("Installierten Launcher starten", "action.switchlauncher", pkgs, labels));
+            }
+
             list.add(new DetailRowSpec("System", "action.tvsettings",
                     new String[]{"open"},
                     new String[]{"Android TV Systemeinstellungen öffnen"}));
@@ -1188,7 +1200,8 @@ public class NativeHomeView extends View {
         if ("clockstyle".equals(axis)) return config.clockstyle;
         if ("clockglass".equals(axis)) return config.clockglass;
         if ("clocktitle".equals(axis)) return config.clocktitle;
-        if ("action.default".equals(axis)) return activity.isDefaultLauncher() ? "clean" : "projectivy";
+        if ("autostart".equals(axis)) return config.autostart;
+        if ("action.default".equals(axis)) return activity.isDefaultLauncher() ? "clean" : "system";
         return "";
     }
 
@@ -1223,6 +1236,7 @@ public class NativeHomeView extends View {
         else if ("clockstyle".equals(axis)) config.clockstyle = val;
         else if ("clockglass".equals(axis)) config.clockglass = val;
         else if ("clocktitle".equals(axis)) config.clocktitle = val;
+        else if ("autostart".equals(axis)) config.autostart = val;
         config.save(activity);
     }
 
@@ -1885,8 +1899,8 @@ public class NativeHomeView extends View {
                 if ("action.wallpaper".equals(spec.axis)) {
                     wallPickerIndex = CleanConfig.getWallIndex(config.wall);
                     screen = SCREEN_WALLPAPER;
-                } else if ("action.projectivy".equals(spec.axis)) {
-                    activity.handleLaunch("com.spocky.projengmenu");
+                } else if ("action.switchlauncher".equals(spec.axis)) {
+                    activity.handleLaunch(val);
                 } else if ("action.default".equals(spec.axis)) {
                     activity.setDefaultLauncher(val);
                 } else if ("action.tvsettings".equals(spec.axis)) {

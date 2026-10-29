@@ -242,31 +242,68 @@ public class MainActivity extends Activity {
         }
     }
 
+    public static class LauncherInfo {
+        public final String packageName;
+        public final String label;
+        public LauncherInfo(String packageName, String label) {
+            this.packageName = packageName;
+            this.label = label;
+        }
+    }
+
+    public List<LauncherInfo> getOtherInstalledLaunchers() {
+        List<LauncherInfo> list = new ArrayList<>();
+        try {
+            PackageManager pm = getPackageManager();
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_HOME);
+            List<ResolveInfo> resolves = pm.queryIntentActivities(intent, PackageManager.MATCH_ALL);
+            for (ResolveInfo ri : resolves) {
+                if (ri.activityInfo != null) {
+                    String pkg = ri.activityInfo.packageName;
+                    if (!getPackageName().equals(pkg)) {
+                        String lbl = ri.loadLabel(pm).toString();
+                        list.add(new LauncherInfo(pkg, lbl));
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return list;
+    }
+
+    public void openHomeSettingsOrPicker() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_HOME_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Throwable t1) {
+            try {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Throwable t2) {
+                openAndroidSettings();
+            }
+        }
+    }
+
     public void setDefaultLauncher(String which) {
         try {
             PackageManager pm = getPackageManager();
             ComponentName alias = new ComponentName(this, "com.example.tv.HomeLauncherAlias");
-            if ("projectivy".equalsIgnoreCase(which)) {
+            if ("system".equalsIgnoreCase(which) || "other".equalsIgnoreCase(which)) {
                 pm.setComponentEnabledSetting(
                         alias,
                         PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                         PackageManager.DONT_KILL_APP
                 );
-                Toast.makeText(this, "Projectivy ist jetzt Standard-Launcher", Toast.LENGTH_SHORT).show();
-                handleLaunch("com.spocky.projengmenu");
-                finish();
+                openHomeSettingsOrPicker();
             } else {
                 pm.setComponentEnabledSetting(
                         alias,
                         PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
                         PackageManager.DONT_KILL_APP
                 );
-                try {
-                    ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-                    if (am != null) {
-                        am.killBackgroundProcesses("com.spocky.projengmenu");
-                    }
-                } catch (Throwable ignored) {}
                 Toast.makeText(this, "CleanScreen ist jetzt Standard-Launcher", Toast.LENGTH_SHORT).show();
             }
         } catch (Throwable t) {

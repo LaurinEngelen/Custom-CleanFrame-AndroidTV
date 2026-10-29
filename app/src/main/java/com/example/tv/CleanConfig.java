@@ -77,6 +77,7 @@ public class CleanConfig {
     public String clockstyle = "normal"; // normal, bold, italic, bolditalic, outline
     public String clockglass = "off";    // off, apple, frost
     public String clocktitle = "on";     // on, off (show artwork title next to clock)
+    public String autostart = "on";      // on (start CleanScreen immediately on TV boot), off
 
     public final List<String> homeApps = new ArrayList<>();
 
@@ -107,6 +108,7 @@ public class CleanConfig {
         c.clockstyle = sp.getString("clockstyle", "normal");
         c.clockglass = sp.getString("clockglass", "off");
         c.clocktitle = sp.getString("clocktitle", "on");
+        c.autostart = sp.getString("autostart", "on");
 
         String homeJson = sp.getString("homeApps", null);
         if (homeJson != null) {
@@ -155,6 +157,7 @@ public class CleanConfig {
         ed.putString("clockstyle", clockstyle);
         ed.putString("clockglass", clockglass);
         ed.putString("clocktitle", clocktitle);
+        ed.putString("autostart", autostart);
 
         JSONArray arr = new JSONArray();
         for (String pkg : homeApps) {
