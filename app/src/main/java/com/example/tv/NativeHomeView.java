@@ -1,12 +1,11 @@
 package com.example.tv;
 
-import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
@@ -53,7 +52,7 @@ public class NativeHomeView extends View {
     private int wallPickerScroll = 0;
 
     // Editor state
-    private int editorZone = 0; // 0 = Home apps, 1 = All apps
+    private int editorZone = 0; // 0 = Home apps, 1 = Remove button on Home app, 2 = All apps
     private int editorHomeIdx = 0;
     private int editorAllIdx = 0;
     private int editorHomeScroll = 0;
@@ -102,15 +101,17 @@ public class NativeHomeView extends View {
         }
     };
 
-    // Reusable paints & geometry
+    // Reusable paints & geometry (zero allocations in onDraw)
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    private final Paint shaderPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Rect srcRect = new Rect();
     private final RectF dstRect = new RectF();
-    private final Path clipPath = new Path();
+    private final RectF sliderRect = new RectF();
     private LinearGradient bottomScrimGradient = null;
     private LinearGradient topScrimGradient = null;
+    private final Runnable postInvalidateRunnable = this::postInvalidateOnAnimation;
 
     public NativeHomeView(MainActivity activity, CleanConfig config) {
         super(activity);
@@ -126,7 +127,7 @@ public class NativeHomeView extends View {
             config.save(activity);
         }
 
-        // Preload current wallpaper & material on background thread
+        // Preload current wallpaper, material shader, and font on background thread
         preloadWallpaperAsync(config.wall);
         resetIdleTimer();
         handler.postDelayed(clockTicker, 15000);
@@ -134,14 +135,15 @@ public class NativeHomeView extends View {
 
     private void preloadWallpaperAsync(final String wallId) {
         new Thread(() -> {
-            CleanAssets.getWallpaper(activity, wallId);
-            CleanAssets.getMaterial(activity, wallId, config.material);
-            postInvalidate();
+            CleanAssets.loadFontSync(activity, config.font);
+            CleanAssets.loadWallpaperSync(activity, wallId);
+            CleanAssets.loadMaterialShaderSync(activity, wallId, config.material);
+            postInvalidateOnAnimation();
         }).start();
     }
 
     public void onAppsLoaded() {
-        postInvalidate();
+        postInvalidateOnAnimation();
     }
 
     public void resetIdleTimer() {
@@ -214,7 +216,7 @@ public class NativeHomeView extends View {
 
         boolean isLightBg = "light".equals(config.bg);
         int inkColor = isLightBg ? Color.parseColor("#16181A") : Color.WHITE;
-        int muteColor = isLightBg ? Color.parseColor("#6E737B") : Color.parseColor("#B8C0CC");
+        int muteColor = isLightBg ? Color.parseColor("#6E737B") : Color.parseColor("#C2CAD6");
 
         // 1. Draw Background
         drawBackgroundLayer(canvas);
@@ -265,7 +267,7 @@ public class NativeHomeView extends View {
         }
 
         String wallId = (screen == SCREEN_ART) ? CleanConfig.WALLS[artWallIdx].id : config.wall;
-        Bitmap wallBmp = CleanAssets.getWallpaper(activity, wallId);
+        Bitmap wallBmp = CleanAssets.getWallpaperCached(activity, wallId, postInvalidateRunnable);
         if (wallBmp != null && !wallBmp.isRecycled()) {
             srcRect.set(0, 0, wallBmp.getWidth(), wallBmp.getHeight());
             dstRect.set(0, 0, 1920, 1080);
@@ -273,30 +275,29 @@ public class NativeHomeView extends View {
             canvas.drawBitmap(wallBmp, srcRect, dstRect, paint);
         } else {
             canvas.drawColor(Color.parseColor("#12151A"));
-            preloadWallpaperAsync(wallId);
         }
 
         if (screen != SCREEN_ART) {
             if (bottomScrimGradient == null) {
                 bottomScrimGradient = new LinearGradient(
-                        0, 520, 0, 1080,
-                        new int[]{0x00000000, 0x44000000, 0x99000000},
-                        new float[]{0f, 0.55f, 1f},
+                        0, 560, 0, 1080,
+                        new int[]{0x00000000, 0x38000000, 0x7A000000},
+                        new float[]{0f, 0.6f, 1f},
                         Shader.TileMode.CLAMP
                 );
             }
             if (topScrimGradient == null) {
                 topScrimGradient = new LinearGradient(
-                        0, 0, 0, 220,
-                        new int[]{0x66000000, 0x00000000},
+                        0, 0, 0, 200,
+                        new int[]{0x55000000, 0x00000000},
                         null,
                         Shader.TileMode.CLAMP
                 );
             }
             paint.setShader(topScrimGradient);
-            canvas.drawRect(0, 0, 1920, 220, paint);
+            canvas.drawRect(0, 0, 1920, 200, paint);
             paint.setShader(bottomScrimGradient);
-            canvas.drawRect(0, 520, 1920, 1080, paint);
+            canvas.drawRect(0, 560, 1920, 1080, paint);
             paint.setShader(null);
         }
     }
@@ -334,7 +335,7 @@ public class NativeHomeView extends View {
             canvas.drawText("·   " + wi.name, 112f + timeW + 20f, 102f, textPaint);
         }
 
-        // Top-Right Utility Pills
+        // Top-Right Quiet Utility Icons (matching .quiet-utils in style.css: no surrounding box!)
         List<String> utils = getUtilityItems();
         if (utilIndex >= utils.size()) utilIndex = Math.max(0, utils.size() - 1);
 
@@ -343,9 +344,8 @@ public class NativeHomeView extends View {
         float rightEdge = 1808f;
         float topY = 64f;
         float pillH = 60f;
-        float gap = 14f;
+        float gap = 16f;
 
-        // Measure total width from right to left
         float[] widths = new float[utils.size()];
         String[] labels = new String[utils.size()];
         textPaint.setTextSize(26f);
@@ -353,9 +353,9 @@ public class NativeHomeView extends View {
             String u = utils.get(i);
             labels[i] = "art".equals(u) ? "Art Mode" : "apps".equals(u) ? "Alle Apps" : "Einstellungen";
             if (showIcons && showText) {
-                widths[i] = 36f + textPaint.measureText(labels[i]) + 52f;
+                widths[i] = 36f + textPaint.measureText(labels[i]) + 48f;
             } else if (showText) {
-                widths[i] = textPaint.measureText(labels[i]) + 48f;
+                widths[i] = textPaint.measureText(labels[i]) + 40f;
             } else {
                 widths[i] = 60f;
             }
@@ -365,15 +365,8 @@ public class NativeHomeView extends View {
         for (int i = 0; i < widths.length; i++) {
             totalW += widths[i] + (i > 0 ? gap : 0f);
         }
-        float startX = rightEdge - totalW;
+        float curX = rightEdge - totalW;
 
-        // Draw subtle glass container around utilities if glass focus is enabled
-        if ("glass".equals(config.focus)) {
-            dstRect.set(startX - 8f, topY - 6f, rightEdge + 8f, topY + pillH + 6f);
-            drawGlassPlate(canvas, dstRect, 36f, false);
-        }
-
-        float curX = startX;
         for (int i = 0; i < utils.size(); i++) {
             boolean focused = (screen == SCREEN_HOME && homeZone == ZONE_UTILS && utilIndex == i);
             float w = widths[i];
@@ -381,40 +374,38 @@ public class NativeHomeView extends View {
 
             int fgColor;
             if (focused) {
-                paint.setColor(isLightBg() ? 0xFF16181A : 0xFFFFFFFF);
+                paint.setColor(isLightBg() ? 0x22000000 : 0x33FFFFFF);
                 canvas.drawRoundRect(dstRect, 30f, 30f, paint);
-                fgColor = isLightBg() ? Color.WHITE : Color.parseColor("#111316");
-            } else {
                 fgColor = inkColor;
+            } else {
+                fgColor = (inkColor & 0x00FFFFFF) | 0xA8000000;
             }
 
-            strokePaint.setColor(fgColor);
             textPaint.setColor(fgColor);
             textPaint.setTextSize(26f);
 
             if (showIcons && !showText) {
-                CleanAssets.drawUiIcon(canvas, utils.get(i), curX + w * 0.5f, topY + pillH * 0.5f, 26f, strokePaint);
+                CleanAssets.drawUiIcon(activity, canvas, utils.get(i), curX + w * 0.5f, topY + pillH * 0.5f, focused ? 34f : 30f, fgColor, strokePaint);
                 if (focused) {
-                    // Draw floating label right below the focused icon
                     String lbl = labels[i];
                     float lw = textPaint.measureText(lbl) + 36f;
                     float lx = Math.min(1808f - lw, Math.max(112f, curX + w * 0.5f - lw * 0.5f));
-                    RectF lblRect = new RectF(lx, topY + pillH + 14f, lx + lw, topY + pillH + 58f);
-                    paint.setColor(0xD814171C);
-                    canvas.drawRoundRect(lblRect, 22f, 22f, paint);
+                    RectF lblRect = new RectF(lx, topY + pillH + 10f, lx + lw, topY + pillH + 52f);
+                    paint.setColor(0xCC12151B);
+                    canvas.drawRoundRect(lblRect, 21f, 21f, paint);
                     textPaint.setColor(Color.WHITE);
-                    textPaint.setTextSize(23f);
-                    canvas.drawText(lbl, lx + 18f, topY + pillH + 44f, textPaint);
+                    textPaint.setTextSize(22f);
+                    canvas.drawText(lbl, lx + 18f, topY + pillH + 39f, textPaint);
                 }
             } else if (showIcons && showText) {
-                CleanAssets.drawUiIcon(canvas, utils.get(i), curX + 32f, topY + pillH * 0.5f, 24f, strokePaint);
+                CleanAssets.drawUiIcon(activity, canvas, utils.get(i), curX + 30f, topY + pillH * 0.5f, 26f, fgColor, strokePaint);
                 Paint.FontMetrics fm = textPaint.getFontMetrics();
                 float ty = topY + pillH * 0.5f - (fm.ascent + fm.descent) * 0.5f;
-                canvas.drawText(labels[i], curX + 54f, ty, textPaint);
+                canvas.drawText(labels[i], curX + 52f, ty, textPaint);
             } else {
                 Paint.FontMetrics fm = textPaint.getFontMetrics();
                 float ty = topY + pillH * 0.5f - (fm.ascent + fm.descent) * 0.5f;
-                canvas.drawText(labels[i], curX + 24f, ty, textPaint);
+                canvas.drawText(labels[i], curX + 20f, ty, textPaint);
             }
 
             curX += w + gap;
@@ -428,38 +419,42 @@ public class NativeHomeView extends View {
         if (appIndex >= n) appIndex = n - 1;
         if (appIndex < 0) appIndex = 0;
 
-        float scale = config.getIconScale();
+        float scale = config.getScaleFactor();
         boolean iconsOnly = "icons".equals(config.apps);
         boolean textOnly = "text".equals(config.apps);
 
-        float baseTileW = iconsOnly ? 176f : 272f;
-        float baseTileH = iconsOnly ? 144f : (textOnly ? 104f : 192f);
+        float baseTileW = iconsOnly ? 176f : 288f;
+        float baseTileH = iconsOnly ? 144f : (textOnly ? 104f : 200f);
         float tileW = Math.round(baseTileW * scale);
         float tileH = Math.round(baseTileH * scale);
-        float gap = Math.round(12f * scale);
+        float gap = Math.round(8f * scale);
         float pitch = tileW + gap;
+        float dockPad = Math.round(16f * scale);
 
-        float dockBottomY;
-        if ("center".equals(config.dockpos)) {
-            dockBottomY = 540f + tileH * 0.5f;
-        } else if ("low".equals(config.dockpos)) {
-            dockBottomY = 1036f;
-        } else {
-            dockBottomY = 984f;
-        }
-        float dockTopY = dockBottomY - tileH;
-
-        float maxVisibleWidth = 1696f; // 1920 - 2 * 112
+        // Compute horizontal & vertical position from config.dockPosX (0..100) and config.dockPosY (10..98)
+        float maxShelfInnerW = 1472f;
         float totalTrackW = n * pitch - gap;
-        float trackStartX;
-        if (totalTrackW <= maxVisibleWidth) {
+        float visibleTrackW = Math.min(maxShelfInnerW, totalTrackW);
+        float totalDockW = visibleTrackW + dockPad * 2f;
+        float totalDockH = tileH + dockPad * 2f;
+
+        float minLeft = 64f;
+        float maxLeft = Math.max(minLeft, 1920f - 64f - totalDockW);
+        float dockLeft = minLeft + (maxLeft - minLeft) * (config.dockPosX / 100f);
+        float trackStartX = dockLeft + dockPad;
+
+        float minTop = 140f;
+        float maxTop = Math.max(minTop, 1048f - totalDockH);
+        float dockTop = minTop + (maxTop - minTop) * ((config.dockPosY - 10f) / 88f);
+        float tileTopY = dockTop + dockPad;
+        float tileBottomY = tileTopY + tileH;
+
+        if (totalTrackW <= visibleTrackW) {
             targetScrollX = 0f;
-            trackStartX = 112f;
         } else {
-            trackStartX = 112f;
             float selectedCenter = appIndex * pitch + tileW * 0.5f;
-            float desiredScroll = selectedCenter - maxVisibleWidth * 0.5f;
-            float maxScroll = Math.max(0f, totalTrackW - maxVisibleWidth);
+            float desiredScroll = selectedCenter - visibleTrackW * 0.5f;
+            float maxScroll = Math.max(0f, totalTrackW - visibleTrackW);
             targetScrollX = Math.max(0f, Math.min(maxScroll, desiredScroll));
         }
 
@@ -472,59 +467,65 @@ public class NativeHomeView extends View {
             animFocusW = targetFocusW;
             focusInitialized = true;
         } else {
-            animScrollX += (targetScrollX - animScrollX) * 0.38f;
-            animFocusX += (targetFocusX - animFocusX) * 0.38f;
-            animFocusW += (targetFocusW - animFocusW) * 0.38f;
-            if (Math.abs(targetScrollX - animScrollX) < 0.4f) animScrollX = targetScrollX;
-            if (Math.abs(targetFocusX - animFocusX) < 0.4f) animFocusX = targetFocusX;
-            if (Math.abs(targetFocusW - animFocusW) < 0.4f) animFocusW = targetFocusW;
+            animScrollX += (targetScrollX - animScrollX) * 0.42f;
+            animFocusX += (targetFocusX - animFocusX) * 0.42f;
+            animFocusW += (targetFocusW - animFocusW) * 0.42f;
+            if (Math.abs(targetScrollX - animScrollX) < 0.5f) animScrollX = targetScrollX;
+            if (Math.abs(targetFocusX - animFocusX) < 0.5f) animFocusX = targetFocusX;
+            if (Math.abs(targetFocusW - animFocusW) < 0.5f) animFocusW = targetFocusW;
         }
 
         boolean animating = (animScrollX != targetScrollX) || (animFocusX != targetFocusX);
 
-        // Draw Dock Shelf Glass Background if focus == glass
-        float shelfRight = Math.min(1808f, trackStartX + totalTrackW + 20f);
+        // 1. Draw Outer Dock Container (.mat in style.css: border-radius = 48px * scale, concentric with 32px * scale inner plate!)
+        float outerRadius = 48f * scale;
+        float innerRadius = 32f * scale;
+        dstRect.set(dockLeft, dockTop, dockLeft + totalDockW, dockTop + totalDockH);
         if ("glass".equals(config.focus)) {
-            dstRect.set(trackStartX - 20f, dockTopY - 16f, shelfRight, dockBottomY + 16f);
-            drawGlassPlate(canvas, dstRect, 36f, false);
+            drawDockGlassContainer(canvas, dstRect, outerRadius);
         }
 
-        // Draw sliding Focus Pill for the active app tile
+        // 2. Draw Inner Sliding Focus Plate (.plate in style.css: border-radius = 32px * scale)
         boolean appZoneFocused = (screen == SCREEN_HOME && homeZone == ZONE_APPS);
-        if (appZoneFocused || screen != SCREEN_HOME) {
-            dstRect.set(animFocusX, dockTopY, animFocusX + animFocusW, dockBottomY);
-            if ("glass".equals(config.focus)) {
-                drawGlassPlate(canvas, dstRect, 28f, appZoneFocused);
-            } else {
-                paint.setColor(appZoneFocused ? (isLightBg() ? 0xFF16181A : 0xFFFFFFFF) : 0x33FFFFFF);
-                canvas.drawRoundRect(dstRect, 28f, 28f, paint);
-            }
+        dstRect.set(animFocusX, tileTopY, animFocusX + animFocusW, tileBottomY);
+        if ("glass".equals(config.focus)) {
+            paint.setColor(appZoneFocused ? (arrangeMode ? 0x504E8CFF : 0x36FFFFFF) : 0x1CFFFFFF);
+            canvas.drawRoundRect(dstRect, innerRadius, innerRadius, paint);
+
+            strokePaint.setStyle(Paint.Style.STROKE);
+            strokePaint.setStrokeWidth(1.5f);
+            strokePaint.setColor(appZoneFocused ? 0x66FFFFFF : 0x28FFFFFF);
+            canvas.drawRoundRect(dstRect, innerRadius, innerRadius, strokePaint);
+        } else if (appZoneFocused) {
+            paint.setColor(isLightBg() ? 0xFF16181A : 0xFFFFFFFF);
+            canvas.drawRoundRect(dstRect, innerRadius, innerRadius, paint);
         }
 
-        // Clip and draw app tiles
+        // 3. Draw App Tiles inside horizontal bounds
         canvas.save();
-        canvas.clipRect(trackStartX - 16f, dockTopY - 30f, 1808f + 16f, dockBottomY + 30f);
+        canvas.clipRect(trackStartX - 4f, dockTop - 20f, trackStartX + visibleTrackW + 4f, dockTop + totalDockH + 20f);
 
         for (int i = 0; i < n; i++) {
             float tx = trackStartX + i * pitch - animScrollX;
-            if (tx + tileW < 80f || tx > 1840f) continue;
+            if (tx + tileW < trackStartX - 20f || tx > trackStartX + visibleTrackW + 20f) continue;
 
             MainActivity.NativeAppEntry app = apps.get(i);
             boolean isFocused = appZoneFocused && (i == appIndex);
-            float liftY = (isFocused && arrangeMode) ? -14f : 0f;
+            float liftY = (isFocused && arrangeMode) ? -10f : 0f;
 
             int itemTextColor;
             if (isFocused && !"glass".equals(config.focus)) {
                 itemTextColor = isLightBg() ? Color.WHITE : Color.parseColor("#111316");
             } else {
-                itemTextColor = isFocused ? Color.WHITE : (isLightBg() ? Color.parseColor("#181A1D") : 0xEEFFFFFF);
+                int baseInk = isLightBg() ? Color.parseColor("#181A1D") : Color.WHITE;
+                itemTextColor = isFocused ? baseInk : ((baseInk & 0x00FFFFFF) | 0xD8000000);
             }
 
             float centerX = tx + tileW * 0.5f;
-            float iconBox = Math.round((iconsOnly ? 84f : 76f) * scale);
+            float iconBox = Math.round((iconsOnly ? 76f : 72f) * scale);
             float iconCenterY = iconsOnly
-                    ? (dockTopY + tileH * 0.5f + liftY)
-                    : (dockTopY + tileH * 0.38f + liftY);
+                    ? (tileTopY + tileH * 0.5f + liftY)
+                    : (tileTopY + tileH * 0.38f + liftY);
 
             if (!textOnly) {
                 drawAppIcon(canvas, app, centerX, iconCenterY, iconBox, itemTextColor);
@@ -532,45 +533,50 @@ public class NativeHomeView extends View {
 
             if (!iconsOnly) {
                 textPaint.setColor(itemTextColor);
-                textPaint.setTextSize(Math.max(18f, Math.round((textOnly ? 30f : 24f) * scale)));
-                String label = ellipsize(app.label, tileW - 28f);
+                textPaint.setTextSize(Math.max(16f, Math.round((textOnly ? 34f : 28f) * scale)));
+                String label = ellipsize(app.label, tileW - 24f * scale);
                 float tw = textPaint.measureText(label);
                 Paint.FontMetrics fm = textPaint.getFontMetrics();
                 float textY = textOnly
-                        ? (dockTopY + tileH * 0.5f - (fm.ascent + fm.descent) * 0.5f + liftY)
-                        : (dockBottomY - 22f * scale + liftY);
+                        ? (tileTopY + tileH * 0.5f - (fm.ascent + fm.descent) * 0.5f + liftY)
+                        : (tileBottomY - 24f * scale + liftY);
                 canvas.drawText(label, centerX - tw * 0.5f, textY, textPaint);
             }
         }
         canvas.restore();
 
-        // In icons-only mode, draw the floating app name centered right above the focused app tile!
-        if (iconsOnly && appZoneFocused && appIndex < n) {
+        // 4. Floating Label (in icons-only mode) or Arrange Mode Action Bar
+        if (arrangeMode && appZoneFocused && appIndex < n) {
+            String hint = "◄ ► Verschieben  ·  ▼ Runter = Entfernen (" + apps.get(appIndex).label + ")  ·  OK = Fertig";
+            textPaint.setTextSize(24f);
+            float hw = textPaint.measureText(hint) + 44f;
+            float hx = Math.max(64f, Math.min(1856f - hw, animFocusX + animFocusW * 0.5f - hw * 0.5f));
+            float pillBottom = dockTop - 16f;
+            if (pillBottom < 140f) pillBottom = dockTop + totalDockH + 64f;
+            dstRect.set(hx, pillBottom - 48f, hx + hw, pillBottom);
+            paint.setColor(0xDD101318);
+            canvas.drawRoundRect(dstRect, 24f, 24f, paint);
+            textPaint.setColor(Color.WHITE);
+            canvas.drawText(hint, hx + 22f, pillBottom - 16f, textPaint);
+        } else if (iconsOnly && (appZoneFocused || (screen == SCREEN_DETAIL && "layout".equals(currentDetailGroup))) && appIndex < n) {
             String focusedName = apps.get(appIndex).label;
-            if (arrangeMode) {
-                focusedName = "◄ ► Verschieben: " + focusedName + " (OK = Platzieren)";
-            }
-            textPaint.setTextSize(28f);
+            textPaint.setTextSize(Math.max(20f, Math.round(28f * scale)));
             float nameW = textPaint.measureText(focusedName);
-            float pillW = nameW + 44f;
+            float pillW = nameW + 40f;
             float focusCenterX = animFocusX + animFocusW * 0.5f;
-            float pillLeft = Math.max(112f, Math.min(1808f - pillW, focusCenterX - pillW * 0.5f));
-            float pillBottom = dockTopY - 22f;
-            float pillTop = pillBottom - 52f;
+            float pillLeft = Math.max(64f, Math.min(1856f - pillW, focusCenterX - pillW * 0.5f));
+            float pillBottom = dockTop - 14f;
+            if (pillBottom < 130f) pillBottom = dockTop + totalDockH + 62f;
+            float pillTop = pillBottom - 48f;
 
             dstRect.set(pillLeft, pillTop, pillLeft + pillW, pillBottom);
             paint.setColor(0xCC12151B);
-            canvas.drawRoundRect(dstRect, 26f, 26f, paint);
+            canvas.drawRoundRect(dstRect, 24f, 24f, paint);
 
             textPaint.setColor(Color.WHITE);
             Paint.FontMetrics fm = textPaint.getFontMetrics();
             float ty = (pillTop + pillBottom) * 0.5f - (fm.ascent + fm.descent) * 0.5f;
-            canvas.drawText(focusedName, pillLeft + 22f, ty, textPaint);
-        } else if (arrangeMode && appZoneFocused && appIndex < n) {
-            String hint = "◄ ► Position ändern  ·  OK = Speichern  ·  Runter = Vom Homescreen entfernen";
-            textPaint.setTextSize(24f);
-            textPaint.setColor(Color.WHITE);
-            canvas.drawText(hint, 112f, dockTopY - 28f, textPaint);
+            canvas.drawText(focusedName, pillLeft + 20f, ty, textPaint);
         }
 
         return animating;
@@ -598,10 +604,10 @@ public class NativeHomeView extends View {
             dstRect.set(112f, y, 680f, y + rowH);
             if (isFocused) {
                 if ("glass".equals(config.focus)) {
-                    drawGlassPlate(canvas, dstRect, 28f, true);
+                    drawDockGlassContainer(canvas, dstRect, 32f);
                 } else {
                     paint.setColor(isLightBg() ? 0xFF16181A : 0xFFFFFFFF);
-                    canvas.drawRoundRect(dstRect, 28f, 28f, paint);
+                    canvas.drawRoundRect(dstRect, 32f, 32f, paint);
                 }
             }
 
@@ -626,59 +632,54 @@ public class NativeHomeView extends View {
 
     private void drawAppIcon(Canvas canvas, MainActivity.NativeAppEntry app, float cx, float cy, float size, int tintColor) {
         if ("clean".equals(config.iconstyle)) {
-            CleanAssets.drawCleanBrandMark(canvas, app.packageName, app.label, cx, cy, size, tintColor, textPaint);
-            return;
+            // In CleanFrame style, draw exact SVG vector icons for brand apps; for other apps draw clean monogram or icon
+            if (CleanAssets.getCleanBrandVectorRes(app.packageName) != 0) {
+                CleanAssets.drawCleanBrandMark(activity, canvas, app.packageName, app.label, cx, cy, size, tintColor, textPaint, strokePaint);
+                return;
+            }
         }
+
         Bitmap iconBmp = app.iconBitmap;
         if (iconBmp != null && !iconBmp.isRecycled()) {
             float half = size * 0.5f;
             srcRect.set(0, 0, iconBmp.getWidth(), iconBmp.getHeight());
             dstRect.set(cx - half, cy - half, cx + half, cy + half);
-            canvas.save();
-            clipPath.reset();
-            clipPath.addRoundRect(dstRect, size * 0.22f, size * 0.22f, Path.Direction.CW);
-            canvas.clipPath(clipPath);
             paint.setAlpha(255);
             canvas.drawBitmap(iconBmp, srcRect, dstRect, paint);
-            canvas.restore();
         } else {
-            CleanAssets.drawCleanBrandMark(canvas, app.packageName, app.label, cx, cy, size, tintColor, textPaint);
+            CleanAssets.drawCleanBrandMark(activity, canvas, app.packageName, app.label, cx, cy, size, tintColor, textPaint, strokePaint);
         }
     }
 
-    private void drawGlassPlate(Canvas canvas, RectF rect, float radius, boolean isFocusedHighlight) {
+    /**
+     * Draws a smooth, anti-aliased Frosted Glass rounded container using BitmapShader (no canvas.clipPath!).
+     */
+    private void drawDockGlassContainer(Canvas canvas, RectF rect, float radius) {
         if ("photo".equals(config.bg)) {
-            Bitmap matBmp = CleanAssets.getMaterial(activity, config.wall, config.material);
-            if (matBmp != null && !matBmp.isRecycled()) {
-                canvas.save();
-                clipPath.reset();
-                clipPath.addRoundRect(rect, radius, radius, Path.Direction.CW);
-                canvas.clipPath(clipPath);
+            BitmapShader matShader = CleanAssets.getMaterialShaderCached(activity, config.wall, config.material, postInvalidateRunnable);
+            if (matShader != null) {
+                shaderPaint.setShader(matShader);
+                canvas.drawRoundRect(rect, radius, radius, shaderPaint);
+                shaderPaint.setShader(null);
 
-                srcRect.set(0, 0, matBmp.getWidth(), matBmp.getHeight());
-                dstRect.set(0, 0, 1920, 1080);
-                paint.setAlpha(255);
-                canvas.drawBitmap(matBmp, srcRect, dstRect, paint);
+                // Subtle frost veil matching .mat-veil in style.css
+                paint.setColor(0x28080E12);
+                canvas.drawRoundRect(rect, radius, radius, paint);
 
-                // Subtle frost / highlight veil
-                paint.setColor(isFocusedHighlight ? 0x44FFFFFF : 0x22000000);
-                canvas.drawRect(rect, paint);
-                canvas.restore();
-
-                // Crisp 1.5px glass border
+                // 1px hairline border matching .mat::after in style.css
                 strokePaint.setStyle(Paint.Style.STROKE);
-                strokePaint.setStrokeWidth(isFocusedHighlight ? 2.5f : 1.5f);
-                strokePaint.setColor(isFocusedHighlight ? 0xCCFFFFFF : 0x44FFFFFF);
+                strokePaint.setStrokeWidth(1.5f);
+                strokePaint.setColor(0x3DFFFFFF);
                 canvas.drawRoundRect(rect, radius, radius, strokePaint);
                 return;
             }
         }
 
-        paint.setColor(isFocusedHighlight ? 0x48FFFFFF : 0x6612151C);
+        paint.setColor(0x7010141B);
         canvas.drawRoundRect(rect, radius, radius, paint);
         strokePaint.setStyle(Paint.Style.STROKE);
-        strokePaint.setStrokeWidth(isFocusedHighlight ? 2.5f : 1.5f);
-        strokePaint.setColor(isFocusedHighlight ? 0xCCFFFFFF : 0x38FFFFFF);
+        strokePaint.setStrokeWidth(1.5f);
+        strokePaint.setColor(0x38FFFFFF);
         canvas.drawRoundRect(rect, radius, radius, strokePaint);
     }
 
@@ -689,15 +690,15 @@ public class NativeHomeView extends View {
                 ? CleanConfig.getWallInfo(config.wall).name
                 : ("light".equals(config.bg) ? "Hell" : "Dunkel");
         String layoutLabel = ("dock".equals(config.layout) ? "Dock" : "Liste")
-                + " · " + ("small".equals(config.iconsize) ? "Klein" : "compact".equals(config.iconsize) ? "Kompakt" : "Normal");
+                + " · Größe " + config.dockScale + "% · X:" + config.dockPosX + "% Y:" + config.dockPosY + "%";
         String fontLabel = "geist".equals(config.font) ? "Geist" : "newsreader".equals(config.font) ? "Newsreader" : "Manrope";
         String focusLabel = "glass".equals(config.focus) ? ("Glass, " + config.material) : "Type";
-        String appsCount = config.homeApps.size() + " Apps";
+        String appsCount = config.homeApps.size() + " Apps (Hinzufügen / Entfernen)";
         String ramStatus = activity.getRamStatusText();
 
         return new String[][]{
                 {"background", "Hintergrund", wallLabel},
-                {"layout", "Layout & Art Mode", layoutLabel},
+                {"layout", "Layout, Position & Art Mode", layoutLabel},
                 {"typography", "Schriftart", fontLabel},
                 {"focus", "Fokus & Glas-Stil", focusLabel},
                 {"editor", "Apps auf dem Homescreen", appsCount},
@@ -706,7 +707,29 @@ public class NativeHomeView extends View {
         };
     }
 
-    private void drawSheetBackdrop(Canvas canvas, String title, String subtitle) {
+    private void drawSheetBackdrop(Canvas canvas, String title, String subtitle, boolean compactLivePreview) {
+        if (compactLivePreview) {
+            // Compact top-right floating card so the entire Homescreen & App Carousel are visible in Live View!
+            dstRect.set(1000f, 36f, 1884f, 640f);
+            paint.setColor(0xD8101318);
+            canvas.drawRoundRect(dstRect, 32f, 32f, paint);
+            strokePaint.setStyle(Paint.Style.STROKE);
+            strokePaint.setStrokeWidth(1.5f);
+            strokePaint.setColor(0x40FFFFFF);
+            canvas.drawRoundRect(dstRect, 32f, 32f, strokePaint);
+
+            textPaint.setColor(Color.WHITE);
+            textPaint.setTextSize(34f);
+            canvas.drawText(title, 1040f, 90f, textPaint);
+
+            if (subtitle != null && !subtitle.isEmpty()) {
+                textPaint.setColor(0xFF9AA4B2);
+                textPaint.setTextSize(20f);
+                canvas.drawText(subtitle, 1040f, 122f, textPaint);
+            }
+            return;
+        }
+
         dstRect.set(980f, 0f, 1920f, 1080f);
         paint.setColor(0xEE101318);
         canvas.drawRect(dstRect, paint);
@@ -728,7 +751,7 @@ public class NativeHomeView extends View {
     }
 
     private void drawSettingsSheet(Canvas canvas) {
-        drawSheetBackdrop(canvas, "Einstellungen", "Änderungen werden sofort live übernommen");
+        drawSheetBackdrop(canvas, "Einstellungen", "Änderungen werden sofort live übernommen", false);
         String[][] rows = getMainSettingsRows();
         float startY = 190f;
         float rowH = 104f;
@@ -750,22 +773,44 @@ public class NativeHomeView extends View {
             textPaint.setTextSize(23f);
             canvas.drawText(rows[i][2], 1076f, y + 80f, textPaint);
 
-            strokePaint.setColor(focused ? Color.parseColor("#111316") : 0xFF9AA4B2);
-            CleanAssets.drawUiIcon(canvas, "right", 1816f, y + rowH * 0.5f, 24f, strokePaint);
+            CleanAssets.drawUiIcon(activity, canvas, "right", 1816f, y + rowH * 0.5f, 24f,
+                    focused ? Color.parseColor("#111316") : 0xFF9AA4B2, strokePaint);
         }
     }
 
     private static class DetailRowSpec {
         final String title;
         final String axis;
+        final boolean isSlider;
+        final int sliderMin;
+        final int sliderMax;
+        final int sliderValue;
+        final String sliderText;
         final String[] values;
         final String[] labels;
 
         DetailRowSpec(String title, String axis, String[] values, String[] labels) {
             this.title = title;
             this.axis = axis;
+            this.isSlider = false;
+            this.sliderMin = 0;
+            this.sliderMax = 100;
+            this.sliderValue = 0;
+            this.sliderText = "";
             this.values = values;
             this.labels = labels;
+        }
+
+        DetailRowSpec(String title, String axis, int min, int max, int current, String text) {
+            this.title = title;
+            this.axis = axis;
+            this.isSlider = true;
+            this.sliderMin = min;
+            this.sliderMax = max;
+            this.sliderValue = current;
+            this.sliderText = text;
+            this.values = new String[]{"slider"};
+            this.labels = new String[]{text};
         }
     }
 
@@ -782,27 +827,30 @@ public class NativeHomeView extends View {
                     new String[]{"fixed", "open", "5", "15", "60"},
                     new String[]{"Fest", "Bei Start", "5 Min", "15 Min", "60 Min"}));
         } else if ("layout".equals(group)) {
-            list.add(new DetailRowSpec("Ansicht", "layout",
-                    new String[]{"dock", "list"},
-                    new String[]{"Dock (Karussell)", "Liste (Links)"}));
-            list.add(new DetailRowSpec("Icon-Größe", "iconsize",
-                    new String[]{"normal", "compact", "small"},
-                    new String[]{"Normal", "Kompakt (80%)", "Klein (65%)"}));
-            list.add(new DetailRowSpec("Dock-Position", "dockpos",
-                    new String[]{"bottom", "center", "low"},
-                    new String[]{"Unten", "Mitte", "Ganz unten"}));
+            list.add(new DetailRowSpec("Horizontale Position (X-Achse  ·  ◄ Links / Rechts ►)", "slider.dockPosX",
+                    0, 100, config.dockPosX,
+                    config.dockPosX == 50 ? "50% (Zentriert)" : config.dockPosX + "%"));
+            list.add(new DetailRowSpec("Vertikale Position (Y-Achse  ·  ◄ Hoch / Runter ►)", "slider.dockPosY",
+                    10, 98, config.dockPosY,
+                    config.dockPosY == 85 ? "85% (Standard)" : config.dockPosY + "%"));
+            list.add(new DetailRowSpec("Karussell- & Icon-Größe (◄ Kleiner / Größer ►)", "slider.dockScale",
+                    50, 140, config.dockScale,
+                    config.dockScale + "%"));
             list.add(new DetailRowSpec("Icon-Stil", "iconstyle",
-                    new String[]{"original", "clean"},
-                    new String[]{"Original (Bunt)", "CleanFrame"}));
-            list.add(new DetailRowSpec("Art Mode (Nur CleanScreen)", "artmode",
-                    new String[]{"on", "off"},
-                    new String[]{"Aktiv", "Aus"}));
+                    new String[]{"clean", "original"},
+                    new String[]{"CleanFrame (Original)", "Android-Icons (Bunt)"}));
             list.add(new DetailRowSpec("App-Beschriftung", "apps",
                     new String[]{"icons", "both", "text"},
                     new String[]{"Nur Icons", "Icons & Text", "Nur Text"}));
+            list.add(new DetailRowSpec("Art Mode (Nur CleanScreen)", "artmode",
+                    new String[]{"on", "off"},
+                    new String[]{"Aktiv", "Aus"}));
             list.add(new DetailRowSpec("Menüpunkte oben rechts", "controls",
                     new String[]{"icons", "both", "text"},
                     new String[]{"Nur Icons", "Icons & Text", "Nur Text"}));
+            list.add(new DetailRowSpec("Ansicht", "layout",
+                    new String[]{"dock", "list"},
+                    new String[]{"Dock (Karussell)", "Liste (Links)"}));
         } else if ("typography".equals(group)) {
             list.add(new DetailRowSpec("Schriftart", "font",
                     new String[]{"manrope", "geist", "newsreader"},
@@ -825,9 +873,6 @@ public class NativeHomeView extends View {
                             "CleanScreen" + (isCleanDef ? " (Aktiv)" : ""),
                             "Projectivy" + (!isCleanDef ? " (Aktiv)" : "")
                     }));
-            list.add(new DetailRowSpec("Arbeitsspeicher", "action.ram",
-                    new String[]{"clear"},
-                    new String[]{activity.getRamStatusText()}));
             list.add(new DetailRowSpec("System", "action.tvsettings",
                     new String[]{"open"},
                     new String[]{"Android TV Systemeinstellungen öffnen"}));
@@ -839,8 +884,6 @@ public class NativeHomeView extends View {
         if ("bg".equals(axis)) return config.bg;
         if ("mode".equals(axis)) return config.mode;
         if ("layout".equals(axis)) return config.layout;
-        if ("iconsize".equals(axis)) return config.iconsize;
-        if ("dockpos".equals(axis)) return config.dockpos;
         if ("iconstyle".equals(axis)) return config.iconstyle;
         if ("artmode".equals(axis)) return config.artmode;
         if ("apps".equals(axis)) return config.apps;
@@ -856,8 +899,6 @@ public class NativeHomeView extends View {
         if ("bg".equals(axis)) config.bg = val;
         else if ("mode".equals(axis)) config.mode = val;
         else if ("layout".equals(axis)) config.layout = val;
-        else if ("iconsize".equals(axis)) config.iconsize = val;
-        else if ("dockpos".equals(axis)) config.dockpos = val;
         else if ("iconstyle".equals(axis)) config.iconstyle = val;
         else if ("artmode".equals(axis)) {
             config.artmode = val;
@@ -865,7 +906,10 @@ public class NativeHomeView extends View {
         }
         else if ("apps".equals(axis)) config.apps = val;
         else if ("controls".equals(axis)) config.controls = val;
-        else if ("font".equals(axis)) config.font = val;
+        else if ("font".equals(axis)) {
+            config.font = val;
+            preloadWallpaperAsync(config.wall);
+        }
         else if ("focus".equals(axis)) config.focus = val;
         else if ("material".equals(axis)) {
             config.material = val;
@@ -875,72 +919,110 @@ public class NativeHomeView extends View {
     }
 
     private void drawDetailSheet(Canvas canvas) {
-        String title = "layout".equals(currentDetailGroup) ? "Layout & Art Mode"
+        boolean isLayoutLive = "layout".equals(currentDetailGroup);
+        String title = isLayoutLive ? "Layout & Live-Position"
                 : "background".equals(currentDetailGroup) ? "Hintergrund"
                 : "typography".equals(currentDetailGroup) ? "Schriftart"
                 : "focus".equals(currentDetailGroup) ? "Fokus & Glas" : "Launcher & System";
-        drawSheetBackdrop(canvas, title, "◄ ► Option wählen  ·  OK = Übernehmen  ·  Zurück = Hauptmenü");
+        String sub = isLayoutLive
+                ? "◄ ► Regler live verschieben  ·  OK = Standardwert  ·  Zurück = Menü"
+                : "◄ ► Option wählen  ·  OK = Übernehmen  ·  Zurück = Hauptmenü";
+        drawSheetBackdrop(canvas, title, sub, isLayoutLive);
 
         List<DetailRowSpec> specs = getDetailSpecs(currentDetailGroup);
         if (detailRow >= specs.size()) detailRow = specs.size() - 1;
         if (detailRow < 0) detailRow = 0;
 
-        int maxVisibleRows = 6;
-        int firstRow = Math.max(0, Math.min(detailRow - 3, specs.size() - maxVisibleRows));
-        float startY = 188f;
-        float sectionH = 132f;
+        int maxVisibleRows = isLayoutLive ? 4 : 6;
+        int firstRow = Math.max(0, Math.min(detailRow - (maxVisibleRows / 2), Math.max(0, specs.size() - maxVisibleRows)));
+        float startY = isLayoutLive ? 142f : 188f;
+        float sectionH = isLayoutLive ? 116f : 132f;
+        float leftX = isLayoutLive ? 1040f : 1044f;
+        float totalW = isLayoutLive ? 804f : 812f;
 
         for (int s = 0; s < Math.min(specs.size(), maxVisibleRows); s++) {
             int r = firstRow + s;
             DetailRowSpec spec = specs.get(r);
             float y = startY + s * sectionH;
 
-            textPaint.setColor(0xFF9AA4B2);
-            textPaint.setTextSize(22f);
-            canvas.drawText(spec.title, 1044f, y + 26f, textPaint);
+            textPaint.setColor(0xFFB0B8C4);
+            textPaint.setTextSize(21f);
+            canvas.drawText(spec.title, leftX, y + 24f, textPaint);
 
-            int count = spec.values.length;
-            float totalW = 812f;
-            float gap = 12f;
-            float btnW = (totalW - gap * (count - 1)) / count;
-            float btnY = y + 40f;
-            float btnH = 72f;
-            String currentVal = getConfigAxisValue(spec.axis);
+            float btnY = y + 36f;
+            float btnH = isLayoutLive ? 64f : 72f;
 
-            for (int c = 0; c < count; c++) {
-                boolean isFocused = (r == detailRow && c == Math.min(detailCol, count - 1));
-                boolean isApplied = spec.values[c].equals(currentVal);
-                float bx = 1044f + c * (btnW + gap);
-                dstRect.set(bx, btnY, bx + btnW, btnY + btnH);
-
-                if (isFocused) {
-                    paint.setColor(Color.WHITE);
-                } else if (isApplied) {
-                    paint.setColor(0x38FFFFFF);
-                } else {
-                    paint.setColor(0x16FFFFFF);
-                }
+            if (spec.isSlider) {
+                boolean isFocused = (r == detailRow);
+                dstRect.set(leftX, btnY, leftX + totalW, btnY + btnH);
+                paint.setColor(isFocused ? Color.WHITE : 0x20FFFFFF);
                 canvas.drawRoundRect(dstRect, 18f, 18f, paint);
 
-                if (isApplied && !isFocused) {
-                    strokePaint.setStyle(Paint.Style.STROKE);
-                    strokePaint.setStrokeWidth(2f);
-                    strokePaint.setColor(0xAAFFFFFF);
-                    canvas.drawRoundRect(dstRect, 18f, 18f, strokePaint);
-                }
+                int fg = isFocused ? Color.parseColor("#111316") : Color.WHITE;
+                CleanAssets.drawUiIcon(activity, canvas, "left", leftX + 28f, btnY + btnH * 0.5f, 22f, fg, strokePaint);
+                CleanAssets.drawUiIcon(activity, canvas, "right", leftX + totalW - 28f, btnY + btnH * 0.5f, 22f, fg, strokePaint);
 
-                textPaint.setColor(isFocused ? Color.parseColor("#111316") : Color.WHITE);
-                textPaint.setTextSize(count > 3 ? 22f : 25f);
-                String lbl = ellipsize(spec.labels[c], btnW - 24f);
-                float tw = textPaint.measureText(lbl);
+                // Draw Slider Track & Thumb
+                float trackLeft = leftX + 64f;
+                float trackRight = leftX + totalW - 210f;
+                float trackCy = btnY + btnH * 0.5f;
+                sliderRect.set(trackLeft, trackCy - 5f, trackRight, trackCy + 5f);
+                paint.setColor(isFocused ? 0x33111316 : 0x38FFFFFF);
+                canvas.drawRoundRect(sliderRect, 5f, 5f, paint);
+
+                float pct = Math.max(0f, Math.min(1f, (spec.sliderValue - spec.sliderMin) / (float) (spec.sliderMax - spec.sliderMin)));
+                float fillRight = trackLeft + (trackRight - trackLeft) * pct;
+                sliderRect.set(trackLeft, trackCy - 5f, fillRight, trackCy + 5f);
+                paint.setColor(isFocused ? Color.parseColor("#111316") : Color.WHITE);
+                canvas.drawRoundRect(sliderRect, 5f, 5f, paint);
+
+                canvas.drawCircle(fillRight, trackCy, 12f, paint);
+
+                textPaint.setColor(fg);
+                textPaint.setTextSize(23f);
                 Paint.FontMetrics fm = textPaint.getFontMetrics();
-                canvas.drawText(lbl, bx + (btnW - tw) * 0.5f, btnY + btnH * 0.5f - (fm.ascent + fm.descent) * 0.5f, textPaint);
+                canvas.drawText(spec.sliderText, trackRight + 20f, trackCy - (fm.ascent + fm.descent) * 0.5f, textPaint);
+            } else {
+                int count = spec.values.length;
+                float gap = 10f;
+                float btnW = (totalW - gap * (count - 1)) / count;
+                String currentVal = getConfigAxisValue(spec.axis);
+
+                for (int c = 0; c < count; c++) {
+                    boolean isFocused = (r == detailRow && c == Math.min(detailCol, count - 1));
+                    boolean isApplied = spec.values[c].equals(currentVal);
+                    float bx = leftX + c * (btnW + gap);
+                    dstRect.set(bx, btnY, bx + btnW, btnY + btnH);
+
+                    if (isFocused) {
+                        paint.setColor(Color.WHITE);
+                    } else if (isApplied) {
+                        paint.setColor(0x38FFFFFF);
+                    } else {
+                        paint.setColor(0x18FFFFFF);
+                    }
+                    canvas.drawRoundRect(dstRect, 18f, 18f, paint);
+
+                    if (isApplied && !isFocused) {
+                        strokePaint.setStyle(Paint.Style.STROKE);
+                        strokePaint.setStrokeWidth(2f);
+                        strokePaint.setColor(0xAAFFFFFF);
+                        canvas.drawRoundRect(dstRect, 18f, 18f, strokePaint);
+                    }
+
+                    textPaint.setColor(isFocused ? Color.parseColor("#111316") : Color.WHITE);
+                    textPaint.setTextSize(count > 3 ? 21f : 24f);
+                    String lbl = ellipsize(spec.labels[c], btnW - 20f);
+                    float tw = textPaint.measureText(lbl);
+                    Paint.FontMetrics fm = textPaint.getFontMetrics();
+                    canvas.drawText(lbl, bx + (btnW - tw) * 0.5f, btnY + btnH * 0.5f - (fm.ascent + fm.descent) * 0.5f, textPaint);
+                }
             }
         }
     }
 
     private void drawWallpaperPickerSheet(Canvas canvas) {
-        drawSheetBackdrop(canvas, "Kunstwerk wählen", (wallPickerIndex + 1) + " von " + CleanConfig.WALLS.length + "  ·  OK = Auswählen");
+        drawSheetBackdrop(canvas, "Kunstwerk wählen", (wallPickerIndex + 1) + " von " + CleanConfig.WALLS.length + "  ·  OK = Auswählen", false);
 
         int maxVis = 7;
         wallPickerScroll = Math.max(0, Math.min(wallPickerIndex - 3, CleanConfig.WALLS.length - maxVis));
@@ -959,22 +1041,12 @@ public class NativeHomeView extends View {
             paint.setColor(focused ? Color.WHITE : (applied ? 0x33FFFFFF : 0x16FFFFFF));
             canvas.drawRoundRect(dstRect, 20f, 20f, paint);
 
-            Bitmap thumb = CleanAssets.getThumb(activity, w.id);
+            Bitmap thumb = CleanAssets.getThumbCached(activity, w.id, postInvalidateRunnable);
             if (thumb != null && !thumb.isRecycled()) {
                 srcRect.set(0, 0, thumb.getWidth(), thumb.getHeight());
                 dstRect.set(1064f, y + 14f, 1196f, y + rowH - 14f);
-                canvas.save();
-                clipPath.reset();
-                clipPath.addRoundRect(dstRect, 12f, 12f, Path.Direction.CW);
-                canvas.clipPath(clipPath);
+                paint.setAlpha(255);
                 canvas.drawBitmap(thumb, srcRect, dstRect, paint);
-                canvas.restore();
-            } else {
-                final String wid = w.id;
-                new Thread(() -> {
-                    CleanAssets.getThumb(activity, wid);
-                    postInvalidate();
-                }).start();
             }
 
             textPaint.setColor(focused ? Color.parseColor("#111316") : Color.WHITE);
@@ -982,29 +1054,37 @@ public class NativeHomeView extends View {
             canvas.drawText(w.name, 1224f, y + 62f, textPaint);
 
             if (applied) {
-                strokePaint.setColor(focused ? Color.parseColor("#111316") : Color.WHITE);
-                CleanAssets.drawUiIcon(canvas, "check", 1810f, y + rowH * 0.5f, 28f, strokePaint);
+                CleanAssets.drawUiIcon(activity, canvas, "check", 1810f, y + rowH * 0.5f, 28f,
+                        focused ? Color.parseColor("#111316") : Color.WHITE, strokePaint);
             }
         }
     }
 
     private void drawEditorSheet(Canvas canvas) {
-        // Full-screen two-column native editor
         paint.setColor(0xF20E1116);
         canvas.drawRect(0, 0, 1920, 1080, paint);
 
         textPaint.setColor(Color.WHITE);
         textPaint.setTextSize(46f);
-        canvas.drawText("Apps verwalten & Alle Apps", 112f, 104f, textPaint);
+        canvas.drawText(allAppsLaunchMode ? "Alle Apps & Homescreen" : "Apps auf dem Homescreen verwalten", 112f, 104f, textPaint);
 
         textPaint.setColor(0xFF9AA4B2);
         textPaint.setTextSize(24f);
-        String hint = editorZone == 0
-                ? (editorLifted ? "▲ ▼ Position verschieben  ·  OK = Ablegen" : "OK = Position verschieben  ·  Rechts = Aus Home entfernen / Alle Apps")
-                : "OK = App öffnen  ·  Links = Auf dem Homescreen ein-/ausblenden";
+        String hint;
+        if (editorZone == 0) {
+            hint = editorLifted
+                    ? "▲ ▼ Position verschieben  ·  OK = Ablegen"
+                    : "OK = Verschieben  ·  Rechts ► = 'Entfernen'-Button auswählen";
+        } else if (editorZone == 1) {
+            hint = "OK = App vom Homescreen entfernen  ·  ◄ Links = Zurück  ·  Rechts ► = Alle Apps";
+        } else {
+            hint = allAppsLaunchMode
+                    ? "OK = App öffnen  ·  ◄ Links = Zum Homescreen-Editor"
+                    : "OK = Auf dem Homescreen ein-/ausblenden  ·  ◄ Links = Homescreen-Liste";
+        }
         canvas.drawText(hint, 112f, 148f, textPaint);
 
-        // Left Column: Home Apps
+        // Left Column: Home Apps + Dedicated [✕ Entfernen] button per row!
         textPaint.setColor(Color.WHITE);
         textPaint.setTextSize(30f);
         canvas.drawText("Auf dem Homescreen (" + config.homeApps.size() + ")", 112f, 212f, textPaint);
@@ -1021,30 +1101,42 @@ public class NativeHomeView extends View {
         for (int s = 0; s < Math.min(homeList.size(), maxVis); s++) {
             int i = editorHomeScroll + s;
             MainActivity.NativeAppEntry app = homeList.get(i);
-            boolean focused = (editorZone == 0 && i == editorHomeIdx);
+            boolean rowFocused = (editorZone == 0 && i == editorHomeIdx);
+            boolean rmFocused = (editorZone == 1 && i == editorHomeIdx);
             float y = startY + s * (rowH + gap);
 
-            dstRect.set(112f, y, 900f, y + rowH);
-            paint.setColor(focused ? (editorLifted ? 0xFF4E8CFF : Color.WHITE) : 0x18FFFFFF);
+            // Main app pill
+            dstRect.set(112f, y, 716f, y + rowH);
+            paint.setColor(rowFocused ? (editorLifted ? 0xFF4E8CFF : Color.WHITE) : 0x18FFFFFF);
             canvas.drawRoundRect(dstRect, 20f, 20f, paint);
 
-            int fg = focused ? (editorLifted ? Color.WHITE : Color.parseColor("#111316")) : Color.WHITE;
-            drawAppIcon(canvas, app, 160f, y + rowH * 0.5f, 54f, fg);
+            int fg = rowFocused ? (editorLifted ? Color.WHITE : Color.parseColor("#111316")) : Color.WHITE;
+            drawAppIcon(canvas, app, 158f, y + rowH * 0.5f, 52f, fg);
 
             textPaint.setColor(fg);
-            textPaint.setTextSize(28f);
-            canvas.drawText(ellipsize(app.label, 520f), 206f, y + 54f, textPaint);
+            textPaint.setTextSize(27f);
+            canvas.drawText(ellipsize(app.label, 420f), 202f, y + 54f, textPaint);
 
-            textPaint.setColor(focused ? fg : 0xFF9AA4B2);
-            textPaint.setTextSize(22f);
-            canvas.drawText(editorLifted && focused ? "▲ ▼" : "#" + (i + 1), 830f, y + 52f, textPaint);
+            textPaint.setColor(rowFocused ? fg : 0xFF9AA4B2);
+            textPaint.setTextSize(21f);
+            canvas.drawText(editorLifted && rowFocused ? "▲ ▼" : "#" + (i + 1), 656f, y + 52f, textPaint);
+
+            // Dedicated [Entfernen] button right next to each Home app
+            dstRect.set(728f, y, 912f, y + rowH);
+            paint.setColor(rmFocused ? 0xFFFF5252 : 0x22FF5252);
+            canvas.drawRoundRect(dstRect, 20f, 20f, paint);
+            textPaint.setColor(rmFocused ? Color.WHITE : 0xFFFF8A80);
+            textPaint.setTextSize(23f);
+            String rmTxt = "Entfernen";
+            float rmW = textPaint.measureText(rmTxt);
+            canvas.drawText(rmTxt, 728f + (184f - rmW) * 0.5f, y + 53f, textPaint);
         }
 
-        // Right Column: All Installed Apps (click OK to toggle on Home, or Long-OK to launch)
+        // Right Column: All Installed Apps
         textPaint.setColor(Color.WHITE);
         textPaint.setTextSize(30f);
         List<MainActivity.NativeAppEntry> allApps = activity.getAllAppsList();
-        canvas.drawText("Alle Apps (" + allApps.size() + "  ·  OK = Auf Home +/-)", 980f, 212f, textPaint);
+        canvas.drawText("Alle installierten Apps (" + allApps.size() + ")", 980f, 212f, textPaint);
 
         if (editorAllIdx >= allApps.size()) editorAllIdx = Math.max(0, allApps.size() - 1);
         editorAllScroll = Math.max(0, Math.min(editorAllIdx - 3, Math.max(0, allApps.size() - maxVis)));
@@ -1052,7 +1144,7 @@ public class NativeHomeView extends View {
         for (int s = 0; s < Math.min(allApps.size(), maxVis); s++) {
             int i = editorAllScroll + s;
             MainActivity.NativeAppEntry app = allApps.get(i);
-            boolean focused = (editorZone == 1 && i == editorAllIdx);
+            boolean focused = (editorZone == 2 && i == editorAllIdx);
             boolean onHome = config.homeApps.contains(app.packageName);
             float y = startY + s * (rowH + gap);
 
@@ -1061,15 +1153,15 @@ public class NativeHomeView extends View {
             canvas.drawRoundRect(dstRect, 20f, 20f, paint);
 
             int fg = focused ? Color.parseColor("#111316") : Color.WHITE;
-            drawAppIcon(canvas, app, 1028f, y + rowH * 0.5f, 54f, fg);
+            drawAppIcon(canvas, app, 1028f, y + rowH * 0.5f, 52f, fg);
 
             textPaint.setColor(fg);
-            textPaint.setTextSize(28f);
-            canvas.drawText(ellipsize(app.label, 520f), 1074f, y + 54f, textPaint);
+            textPaint.setTextSize(27f);
+            canvas.drawText(ellipsize(app.label, 500f), 1074f, y + 54f, textPaint);
 
             textPaint.setColor(focused ? Color.parseColor("#111316") : (onHome ? 0xFF68E08F : 0xFF9AA4B2));
             textPaint.setTextSize(22f);
-            canvas.drawText(onHome ? "✓ Auf Home" : "+ Hinzufügen", 1640f, y + 52f, textPaint);
+            canvas.drawText(onHome ? "✓ Auf Home" : "+ Auf Home", 1640f, y + 52f, textPaint);
         }
     }
 
@@ -1101,7 +1193,7 @@ public class NativeHomeView extends View {
                 if (event.getRepeatCount() == 0) {
                     okDown = true;
                     okLongHandled = false;
-                    handler.postDelayed(longPressRunnable, 450);
+                    handler.postDelayed(longPressRunnable, 420);
                 }
                 return true;
             } else {
@@ -1193,16 +1285,16 @@ public class NativeHomeView extends View {
                     invalidate();
                     return true;
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                    if (arrangeMode && config.homeApps.size() > 1 && appIndex < config.homeApps.size()) {
-                        config.homeApps.remove(appIndex);
-                        if (appIndex >= config.homeApps.size()) appIndex = config.homeApps.size() - 1;
+                    if (arrangeMode && config.homeApps.size() > 1 && appIndex < apps.size()) {
+                        String pkgToRemove = apps.get(appIndex).packageName;
+                        config.homeApps.remove(pkgToRemove);
+                        if (appIndex >= config.homeApps.size()) appIndex = Math.max(0, config.homeApps.size() - 1);
                         config.save(activity);
                         invalidate();
                     }
                     return true;
                 }
             } else {
-                // List mode navigation
                 if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
                     if (appIndex > 0) appIndex--;
                     else homeZone = ZONE_UTILS;
@@ -1219,7 +1311,6 @@ public class NativeHomeView extends View {
                 }
             }
         } else {
-            // ZONE_UTILS
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
                 if (utilIndex > 0) utilIndex--;
                 else if (isList) homeZone = ZONE_APPS;
@@ -1283,6 +1374,26 @@ public class NativeHomeView extends View {
             }
             return true;
         }
+
+        DetailRowSpec cur = specs.get(detailRow);
+        if (cur.isSlider) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                int dir = (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) ? 1 : -1;
+                if ("slider.dockPosX".equals(cur.axis)) {
+                    config.dockPosX = Math.max(0, Math.min(100, config.dockPosX + dir * 2));
+                } else if ("slider.dockPosY".equals(cur.axis)) {
+                    config.dockPosY = Math.max(10, Math.min(98, config.dockPosY + dir * 2));
+                } else if ("slider.dockScale".equals(cur.axis)) {
+                    config.dockScale = Math.max(50, Math.min(140, config.dockScale + dir * 5));
+                }
+                config.save(activity);
+                focusInitialized = false;
+                invalidate();
+                return true;
+            }
+            return true;
+        }
+
         if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
             if (detailCol > 0) {
                 detailCol--;
@@ -1294,7 +1405,7 @@ public class NativeHomeView extends View {
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-            int maxCol = specs.get(detailRow).values.length - 1;
+            int maxCol = cur.values.length - 1;
             if (detailCol < maxCol) {
                 detailCol++;
                 invalidate();
@@ -1338,18 +1449,19 @@ public class NativeHomeView extends View {
             return true;
         }
 
+        List<MainActivity.NativeAppEntry> homeList = getHomeAppEntries();
         List<MainActivity.NativeAppEntry> allApps = activity.getAllAppsList();
         if (editorZone == 0) {
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP && editorHomeIdx > 0) {
-                if (editorLifted) {
+                if (editorLifted && editorHomeIdx < config.homeApps.size()) {
                     String pkg = config.homeApps.remove(editorHomeIdx);
                     config.homeApps.add(editorHomeIdx - 1, pkg);
                     config.save(activity);
                 }
                 editorHomeIdx--;
                 invalidate();
-            } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && editorHomeIdx < config.homeApps.size() - 1) {
-                if (editorLifted) {
+            } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && editorHomeIdx < homeList.size() - 1) {
+                if (editorLifted && editorHomeIdx < config.homeApps.size() - 1) {
                     String pkg = config.homeApps.remove(editorHomeIdx);
                     config.homeApps.add(editorHomeIdx + 1, pkg);
                     config.save(activity);
@@ -1358,7 +1470,21 @@ public class NativeHomeView extends View {
                 invalidate();
             } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
                 editorLifted = false;
-                editorZone = 1;
+                editorZone = 1; // Move focus to the [Entfernen] button of this row
+                invalidate();
+            }
+        } else if (editorZone == 1) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP && editorHomeIdx > 0) {
+                editorHomeIdx--;
+                invalidate();
+            } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && editorHomeIdx < homeList.size() - 1) {
+                editorHomeIdx++;
+                invalidate();
+            } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                editorZone = 0;
+                invalidate();
+            } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                editorZone = 2;
                 invalidate();
             }
         } else {
@@ -1369,7 +1495,7 @@ public class NativeHomeView extends View {
                 editorAllIdx++;
                 invalidate();
             } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                editorZone = 0;
+                editorZone = 1;
                 invalidate();
             }
         }
@@ -1395,7 +1521,7 @@ public class NativeHomeView extends View {
                     if ("art".equals(u)) {
                         enterArtMode(true);
                     } else if ("apps".equals(u)) {
-                        editorZone = 1;
+                        editorZone = 2;
                         editorLifted = false;
                         allAppsLaunchMode = true;
                         screen = SCREEN_EDITOR;
@@ -1429,6 +1555,17 @@ public class NativeHomeView extends View {
             List<DetailRowSpec> specs = getDetailSpecs(currentDetailGroup);
             if (detailRow >= 0 && detailRow < specs.size()) {
                 DetailRowSpec spec = specs.get(detailRow);
+                if (spec.isSlider) {
+                    // Pressing OK on a slider resets it to default
+                    if ("slider.dockPosX".equals(spec.axis)) config.dockPosX = 50;
+                    else if ("slider.dockPosY".equals(spec.axis)) config.dockPosY = 85;
+                    else if ("slider.dockScale".equals(spec.axis)) config.dockScale = 100;
+                    config.save(activity);
+                    focusInitialized = false;
+                    invalidate();
+                    return;
+                }
+
                 int c = Math.min(detailCol, spec.values.length - 1);
                 String val = spec.values[c];
 
@@ -1439,12 +1576,11 @@ public class NativeHomeView extends View {
                     activity.handleLaunch("com.spocky.projengmenu");
                 } else if ("action.default".equals(spec.axis)) {
                     activity.setDefaultLauncher(val);
-                } else if ("action.ram".equals(spec.axis)) {
-                    activity.clearRamAndKillApps();
                 } else if ("action.tvsettings".equals(spec.axis)) {
                     activity.openAndroidSettings();
                 } else {
                     setConfigAxisValue(spec.axis, val);
+                    focusInitialized = false;
                 }
                 invalidate();
             }
@@ -1456,15 +1592,23 @@ public class NativeHomeView extends View {
             screen = SCREEN_DETAIL;
             invalidate();
         } else if (screen == SCREEN_EDITOR) {
+            List<MainActivity.NativeAppEntry> homeList = getHomeAppEntries();
             if (editorZone == 0) {
-                if (allAppsLaunchMode) {
-                    List<MainActivity.NativeAppEntry> homeList = getHomeAppEntries();
-                    if (editorHomeIdx >= 0 && editorHomeIdx < homeList.size()) {
-                        screen = SCREEN_HOME;
-                        activity.handleLaunch(homeList.get(editorHomeIdx).packageName);
+                editorLifted = !editorLifted;
+                invalidate();
+            } else if (editorZone == 1) {
+                // Remove button clicked on Home app!
+                if (homeList.size() > 1 && editorHomeIdx >= 0 && editorHomeIdx < homeList.size()) {
+                    String pkg = homeList.get(editorHomeIdx).packageName;
+                    config.homeApps.remove(pkg);
+                    if (editorHomeIdx >= config.homeApps.size()) {
+                        editorHomeIdx = Math.max(0, config.homeApps.size() - 1);
                     }
-                } else {
-                    editorLifted = !editorLifted;
+                    if (appIndex >= config.homeApps.size()) {
+                        appIndex = Math.max(0, config.homeApps.size() - 1);
+                    }
+                    config.save(activity);
+                    focusInitialized = false;
                     invalidate();
                 }
             } else {
@@ -1483,6 +1627,7 @@ public class NativeHomeView extends View {
                             config.homeApps.add(pkg);
                         }
                         config.save(activity);
+                        focusInitialized = false;
                         invalidate();
                     }
                 }

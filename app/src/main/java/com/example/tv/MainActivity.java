@@ -20,6 +20,8 @@ import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -74,17 +76,21 @@ public class MainActivity extends Activity {
     private void ensureDefaultFallbackEntries() {
         putFallbackIfAbsent("com.netflix.ninja", "Netflix", R.drawable.ic_brand_netflix);
         putFallbackIfAbsent("com.google.android.youtube.tv", "YouTube", R.drawable.ic_brand_youtube);
-        putFallbackIfAbsent("input_hdmi1", "PlayStation 5", R.drawable.ic_brand_ps5);
-        putFallbackIfAbsent("com.spotify.tv.android", "Spotify", R.drawable.ic_brand_spotify);
         putFallbackIfAbsent("com.disney.disneyplus", "Disney+", R.drawable.ic_brand_disneyplus);
-        putFallbackIfAbsent("com.stremio.one", "Stremio", 0);
         putFallbackIfAbsent("com.amazon.amazonvideo.livingroom", "Prime Video", 0);
+        putFallbackIfAbsent("com.spotify.tv.android", "Spotify", R.drawable.ic_brand_spotify);
     }
 
     private void putFallbackIfAbsent(String pkg, String label, int drawableRes) {
         if (!appMap.containsKey(pkg)) {
             Bitmap bmp = null;
-            if (drawableRes != 0) {
+            File cachedIcon = new File(new File(getCacheDir(), "icons"), pkg + ".png");
+            if (cachedIcon.exists() && cachedIcon.length() > 0) {
+                try {
+                    bmp = BitmapFactory.decodeFile(cachedIcon.getAbsolutePath());
+                } catch (Throwable ignored) {}
+            }
+            if (bmp == null && drawableRes != 0) {
                 try {
                     bmp = BitmapFactory.decodeResource(getResources(), drawableRes);
                 } catch (Throwable ignored) {}
@@ -136,25 +142,31 @@ public class MainActivity extends Activity {
                     "com.google.android.tungsten.setupwraith"
             ));
 
-            List<NativeAppEntry> loadedList = new ArrayList<>();
-            // Always include HDMI 1 / PlayStation 5 shortcut
-            NativeAppEntry ps5 = appMap.get("input_hdmi1");
-            if (ps5 != null) {
-                loadedList.add(ps5);
+            File iconDir = new File(getCacheDir(), "icons");
+            if (!iconDir.exists()) {
+                iconDir.mkdirs();
             }
+
+            List<NativeAppEntry> loadedList = new ArrayList<>();
+            Set<String> installedPkgs = new HashSet<>();
 
             for (ResolveInfo ri : merged.values()) {
                 if (ri.activityInfo == null || blacklist.contains(ri.activityInfo.packageName)) {
                     continue;
                 }
                 String pkg = ri.activityInfo.packageName;
+                installedPkgs.add(pkg);
                 String label = ri.loadLabel(pm).toString();
                 Bitmap iconBmp = null;
 
-                NativeAppEntry existing = appMap.get(pkg);
-                if (existing != null && existing.iconBitmap != null) {
-                    iconBmp = existing.iconBitmap;
-                } else {
+                File iconFile = new File(iconDir, pkg + ".png");
+                if (iconFile.exists() && iconFile.length() > 0) {
+                    try {
+                        iconBmp = BitmapFactory.decodeFile(iconFile.getAbsolutePath());
+                    } catch (Throwable ignored) {}
+                }
+
+                if (iconBmp == null) {
                     try {
                         Drawable d = ri.loadIcon(pm);
                         if (d != null) {
@@ -163,6 +175,9 @@ public class MainActivity extends Activity {
                             Canvas c = new Canvas(iconBmp);
                             d.setBounds(0, 0, size, size);
                             d.draw(c);
+                            try (FileOutputStream fos = new FileOutputStream(iconFile)) {
+                                iconBmp.compress(Bitmap.CompressFormat.PNG, 90, fos);
+                            }
                         }
                     } catch (Throwable ignored) {}
                 }
@@ -170,6 +185,19 @@ public class MainActivity extends Activity {
                 NativeAppEntry entry = new NativeAppEntry(pkg, label, iconBmp);
                 appMap.put(pkg, entry);
                 loadedList.add(entry);
+            }
+
+            // Prune any non-installed bloat apps from homeApps
+            boolean changed = false;
+            for (int i = config.homeApps.size() - 1; i >= 0; i--) {
+                String p = config.homeApps.get(i);
+                if (!installedPkgs.contains(p)) {
+                    config.homeApps.remove(i);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                config.save(this);
             }
 
             Collections.sort(loadedList, (a, b) -> a.label.compareToIgnoreCase(b.label));
@@ -358,13 +386,12 @@ public class MainActivity extends Activity {
         BRAND_TO_PACKAGE.put("spotify", "com.spotify.tv.android");
         BRAND_TO_PACKAGE.put("disneyplus", "com.disney.disneyplus");
         BRAND_TO_PACKAGE.put("disney", "com.disney.disneyplus");
-        BRAND_TO_PACKAGE.put("stremio", "com.stremio.one");
         BRAND_TO_PACKAGE.put("primevideo", "com.amazon.amazonvideo.livingroom");
     }
 
     public void handleLaunch(String target) {
         if ("input_hdmi1".equalsIgnoreCase(target) || "playstation".equalsIgnoreCase(target)) {
-            TvInputHelper.switchToInput(this, TvInputHelper.INPUT_HDMI1, "PlayStation 5");
+            TvInputHelper.switchToInput(this, TvInputHelper.INPUT_HDMI1, "HDMI 1");
             return;
         }
 

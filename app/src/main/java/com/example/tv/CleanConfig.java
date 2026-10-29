@@ -11,7 +11,7 @@ import java.util.List;
 
 public class CleanConfig {
 
-    private static final String PREFS_NAME = "cleanframe_native_v1";
+    private static final String PREFS_NAME = "cleanframe_native_v2";
 
     public static class WallInfo {
         public final String id;
@@ -46,20 +46,19 @@ public class CleanConfig {
     public static final List<String> DEFAULT_HOME_APPS = Arrays.asList(
             "com.netflix.ninja",
             "com.google.android.youtube.tv",
-            "input_hdmi1",
-            "com.spotify.tv.android",
             "com.disney.disneyplus",
-            "com.stremio.one",
-            "com.amazon.amazonvideo.livingroom"
+            "com.amazon.amazonvideo.livingroom",
+            "com.spotify.tv.android"
     );
 
     public String bg = "photo";          // photo, light, dark
     public String wall = "misty";        // wallpaper id
     public String mode = "fixed";        // fixed, open, 5, 15, 60
     public String layout = "dock";       // dock, list
-    public String iconsize = "normal";   // normal, compact, small
-    public String dockpos = "bottom";    // bottom, center, low
-    public String iconstyle = "original";// original, clean
+    public int dockPosX = 50;            // 0..100 (50 = centered)
+    public int dockPosY = 85;            // 10..98 (85 = standard bottom)
+    public int dockScale = 100;          // 50..140 (100 = 100%)
+    public String iconstyle = "clean";   // clean (CleanFrame SVG vectors), original (Android app icons)
     public String artmode = "on";        // on, off
     public String apps = "both";         // icons, both, text
     public String controls = "icons";    // icons, both, text
@@ -75,9 +74,10 @@ public class CleanConfig {
         c.wall = sp.getString("wall", "misty");
         c.mode = sp.getString("mode", "fixed");
         c.layout = sp.getString("layout", "dock");
-        c.iconsize = sp.getString("iconsize", "normal");
-        c.dockpos = sp.getString("dockpos", "bottom");
-        c.iconstyle = sp.getString("iconstyle", "original");
+        c.dockPosX = clamp(sp.getInt("dockPosX", 50), 0, 100);
+        c.dockPosY = clamp(sp.getInt("dockPosY", 85), 10, 98);
+        c.dockScale = clamp(sp.getInt("dockScale", 100), 50, 140);
+        c.iconstyle = sp.getString("iconstyle", "clean");
         c.artmode = sp.getString("artmode", "on");
         c.apps = sp.getString("apps", "both");
         c.controls = sp.getString("controls", "icons");
@@ -91,7 +91,10 @@ public class CleanConfig {
                 JSONArray arr = new JSONArray(homeJson);
                 for (int i = 0; i < arr.length(); i++) {
                     String pkg = arr.optString(i, null);
-                    if (pkg != null && !pkg.isEmpty() && !c.homeApps.contains(pkg)) {
+                    if (pkg != null && !pkg.isEmpty()
+                            && !"input_hdmi1".equals(pkg)
+                            && !"com.stremio.one".equals(pkg)
+                            && !c.homeApps.contains(pkg)) {
                         c.homeApps.add(pkg);
                     }
                 }
@@ -109,8 +112,9 @@ public class CleanConfig {
         ed.putString("wall", wall);
         ed.putString("mode", mode);
         ed.putString("layout", layout);
-        ed.putString("iconsize", iconsize);
-        ed.putString("dockpos", dockpos);
+        ed.putInt("dockPosX", dockPosX);
+        ed.putInt("dockPosY", dockPosY);
+        ed.putInt("dockScale", dockScale);
         ed.putString("iconstyle", iconstyle);
         ed.putString("artmode", artmode);
         ed.putString("apps", apps);
@@ -127,6 +131,10 @@ public class CleanConfig {
         ed.apply();
     }
 
+    private static int clamp(int v, int min, int max) {
+        return Math.max(min, Math.min(max, v));
+    }
+
     public static WallInfo getWallInfo(String id) {
         for (WallInfo w : WALLS) {
             if (w.id.equals(id)) return w;
@@ -141,9 +149,7 @@ public class CleanConfig {
         return 0;
     }
 
-    public float getIconScale() {
-        if ("small".equals(iconsize)) return 0.68f;
-        if ("compact".equals(iconsize)) return 0.82f;
-        return 1.0f;
+    public float getScaleFactor() {
+        return dockScale / 100f;
     }
 }
