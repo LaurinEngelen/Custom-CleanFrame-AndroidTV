@@ -162,6 +162,26 @@ public class CleanAssets {
         return null;
     }
 
+    private static final Matrix sharedShaderMatrix = new Matrix();
+
+    public static void applyMaterialLensMatrix(BitmapShader bs, String wallId, String materialMode, boolean curvedLens, float pivotX, float pivotY) {
+        if (bs == null) return;
+        String suffix = "soft".equals(materialMode)
+                ? "-study-soft.jpg"
+                : "tint".equals(materialMode) ? "-field-clear.jpg" : "-field-frost.jpg";
+        String key = "mat:" + wallId + ":" + suffix;
+        Bitmap bmp = bitmapCache.get(key);
+        float bw = (bmp != null && !bmp.isRecycled()) ? bmp.getWidth() : 1920f;
+        float bh = (bmp != null && !bmp.isRecycled()) ? bmp.getHeight() : 1080f;
+        sharedShaderMatrix.reset();
+        sharedShaderMatrix.setScale(1920f / bw, 1080f / bh);
+        if (curvedLens) {
+            // Subtle optical convex lens refraction around the dock center (Apple Liquid Glass effect)
+            sharedShaderMatrix.postScale(1.045f, 1.12f, pivotX, pivotY);
+        }
+        bs.setLocalMatrix(sharedShaderMatrix);
+    }
+
     public static Bitmap getThumbCached(final Context ctx, final String wallId, final Runnable onLoaded) {
         final String key = "thumb:" + wallId;
         Bitmap cached = bitmapCache.get(key);

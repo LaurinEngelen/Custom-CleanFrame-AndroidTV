@@ -61,10 +61,13 @@ public class CleanConfig {
     public String iconstyle = "clean";   // clean (CleanFrame SVG vectors), original (Android app icons)
     public String artmode = "on";        // on, off
     public String apps = "both";         // icons, both, text
+    public String labelpos = "bottom";   // bottom (Unten), top (Oben) - when apps == "icons"
     public String controls = "icons";    // icons, both, text
     public String font = "manrope";      // manrope, geist, newsreader
     public String focus = "glass";       // glass, type
     public String material = "frost";    // soft, frost, tint
+    public String focuszoom = "on";      // on (slightly larger on focus), off
+    public String glasscurve = "on";     // on (Apple curved liquid glass), off (flat classic glass)
     public final List<String> homeApps = new ArrayList<>();
 
     public static CleanConfig load(Context ctx) {
@@ -80,10 +83,13 @@ public class CleanConfig {
         c.iconstyle = sp.getString("iconstyle", "clean");
         c.artmode = sp.getString("artmode", "on");
         c.apps = sp.getString("apps", "both");
+        c.labelpos = sp.getString("labelpos", "bottom");
         c.controls = sp.getString("controls", "icons");
         c.font = sp.getString("font", "manrope");
         c.focus = sp.getString("focus", "glass");
         c.material = sp.getString("material", "frost");
+        c.focuszoom = sp.getString("focuszoom", "on");
+        c.glasscurve = sp.getString("glasscurve", "on");
 
         String homeJson = sp.getString("homeApps", null);
         if (homeJson != null) {
@@ -118,10 +124,13 @@ public class CleanConfig {
         ed.putString("iconstyle", iconstyle);
         ed.putString("artmode", artmode);
         ed.putString("apps", apps);
+        ed.putString("labelpos", labelpos);
         ed.putString("controls", controls);
         ed.putString("font", font);
         ed.putString("focus", focus);
         ed.putString("material", material);
+        ed.putString("focuszoom", focuszoom);
+        ed.putString("glasscurve", glasscurve);
 
         JSONArray arr = new JSONArray();
         for (String pkg : homeApps) {

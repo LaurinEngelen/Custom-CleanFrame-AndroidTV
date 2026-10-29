@@ -6,6 +6,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
@@ -71,6 +72,7 @@ public class NativeHomeView extends View {
     private float targetFocusX = 112f;
     private float animFocusW = 240f;
     private float targetFocusW = 240f;
+    private float animFocusIdx = 0f;
     private boolean focusInitialized = false;
 
     // Long-press detection for OK key to enter Arrange Mode
@@ -388,14 +390,15 @@ public class NativeHomeView extends View {
                 CleanAssets.drawUiIcon(activity, canvas, utils.get(i), curX + w * 0.5f, topY + pillH * 0.5f, focused ? 34f : 30f, fgColor, strokePaint);
                 if (focused) {
                     String lbl = labels[i];
-                    float lw = textPaint.measureText(lbl) + 36f;
+                    textPaint.setColor(inkColor);
+                    textPaint.setTextSize(24f);
+                    float lw = textPaint.measureText(lbl);
                     float lx = Math.min(1808f - lw, Math.max(112f, curX + w * 0.5f - lw * 0.5f));
-                    RectF lblRect = new RectF(lx, topY + pillH + 10f, lx + lw, topY + pillH + 52f);
-                    paint.setColor(0xCC12151B);
-                    canvas.drawRoundRect(lblRect, 21f, 21f, paint);
-                    textPaint.setColor(Color.WHITE);
-                    textPaint.setTextSize(22f);
-                    canvas.drawText(lbl, lx + 18f, topY + pillH + 39f, textPaint);
+                    if (!isLightBg()) {
+                        textPaint.setShadowLayer(10f, 0f, 3f, 0x99080A0E);
+                    }
+                    canvas.drawText(lbl, lx, topY + pillH + 34f, textPaint);
+                    textPaint.clearShadowLayer();
                 }
             } else if (showIcons && showText) {
                 CleanAssets.drawUiIcon(activity, canvas, utils.get(i), curX + 30f, topY + pillH * 0.5f, 26f, fgColor, strokePaint);
@@ -444,7 +447,8 @@ public class NativeHomeView extends View {
         float trackStartX = dockLeft + dockPad;
 
         float minTop = 140f;
-        float maxTop = Math.max(minTop, 1048f - totalDockH);
+        float bottomLabelReserve = (iconsOnly && "bottom".equals(config.labelpos)) ? (52f * scale) : 0f;
+        float maxTop = Math.max(minTop, 1048f - totalDockH - bottomLabelReserve);
         float dockTop = minTop + (maxTop - minTop) * ((config.dockPosY - 10f) / 88f);
         float tileTopY = dockTop + dockPad;
         float tileBottomY = tileTopY + tileH;
@@ -465,17 +469,20 @@ public class NativeHomeView extends View {
             animScrollX = targetScrollX;
             animFocusX = targetFocusX;
             animFocusW = targetFocusW;
+            animFocusIdx = appIndex;
             focusInitialized = true;
         } else {
             animScrollX += (targetScrollX - animScrollX) * 0.42f;
             animFocusX += (targetFocusX - animFocusX) * 0.42f;
             animFocusW += (targetFocusW - animFocusW) * 0.42f;
+            animFocusIdx += (appIndex - animFocusIdx) * 0.42f;
             if (Math.abs(targetScrollX - animScrollX) < 0.5f) animScrollX = targetScrollX;
             if (Math.abs(targetFocusX - animFocusX) < 0.5f) animFocusX = targetFocusX;
             if (Math.abs(targetFocusW - animFocusW) < 0.5f) animFocusW = targetFocusW;
+            if (Math.abs(appIndex - animFocusIdx) < 0.01f) animFocusIdx = appIndex;
         }
 
-        boolean animating = (animScrollX != targetScrollX) || (animFocusX != targetFocusX);
+        boolean animating = (animScrollX != targetScrollX) || (animFocusX != targetFocusX) || (animFocusIdx != appIndex);
 
         // 1. Draw Outer Dock Container (.mat in style.css: border-radius = 48px * scale, concentric with 32px * scale inner plate!)
         float outerRadius = 48f * scale;
@@ -486,42 +493,48 @@ public class NativeHomeView extends View {
         }
 
         // 2. Draw Inner Sliding Focus Plate (.plate in style.css: border-radius = 32px * scale)
-        boolean appZoneFocused = (screen == SCREEN_HOME && homeZone == ZONE_APPS);
+        boolean liveDockPreview = (screen == SCREEN_DETAIL && ("layout".equals(currentDetailGroup) || "focus".equals(currentDetailGroup)));
+        boolean appZoneFocused = (screen == SCREEN_HOME && homeZone == ZONE_APPS) || liveDockPreview;
         dstRect.set(animFocusX, tileTopY, animFocusX + animFocusW, tileBottomY);
         if ("glass".equals(config.focus)) {
-            paint.setColor(appZoneFocused ? (arrangeMode ? 0x504E8CFF : 0x36FFFFFF) : 0x1CFFFFFF);
-            canvas.drawRoundRect(dstRect, innerRadius, innerRadius, paint);
-
-            strokePaint.setStyle(Paint.Style.STROKE);
-            strokePaint.setStrokeWidth(1.5f);
-            strokePaint.setColor(appZoneFocused ? 0x66FFFFFF : 0x28FFFFFF);
-            canvas.drawRoundRect(dstRect, innerRadius, innerRadius, strokePaint);
+            drawFocusGlassPlate(canvas, dstRect, innerRadius, appZoneFocused);
         } else if (appZoneFocused) {
             paint.setColor(isLightBg() ? 0xFF16181A : 0xFFFFFFFF);
             canvas.drawRoundRect(dstRect, innerRadius, innerRadius, paint);
         }
 
-        // 3. Draw App Tiles inside horizontal bounds
+        // 3. Draw App Tiles inside horizontal bounds (with optional WebView-style smooth focus enlargement!)
+        boolean zoomEnabled = "on".equals(config.focuszoom);
         canvas.save();
-        canvas.clipRect(trackStartX - 4f, dockTop - 20f, trackStartX + visibleTrackW + 4f, dockTop + totalDockH + 20f);
+        canvas.clipRect(trackStartX - 16f, dockTop - 36f, trackStartX + visibleTrackW + 16f, dockTop + totalDockH + 36f);
 
         for (int i = 0; i < n; i++) {
             float tx = trackStartX + i * pitch - animScrollX;
-            if (tx + tileW < trackStartX - 20f || tx > trackStartX + visibleTrackW + 20f) continue;
+            if (tx + tileW < trackStartX - 24f || tx > trackStartX + visibleTrackW + 24f) continue;
 
             MainActivity.NativeAppEntry app = apps.get(i);
             boolean isFocused = appZoneFocused && (i == appIndex);
-            float liftY = (isFocused && arrangeMode) ? -10f : 0f;
+            float focusAmt = appZoneFocused ? Math.max(0f, 1f - Math.abs(i - animFocusIdx)) : 0f;
+            float liftY = (isFocused && arrangeMode) ? -10f : (zoomEnabled ? (-3.5f * scale * focusAmt) : 0f);
+            float itemZoom = zoomEnabled ? (1f + 0.085f * focusAmt) : 1f;
 
             int itemTextColor;
             if (isFocused && !"glass".equals(config.focus)) {
                 itemTextColor = isLightBg() ? Color.WHITE : Color.parseColor("#111316");
             } else {
                 int baseInk = isLightBg() ? Color.parseColor("#181A1D") : Color.WHITE;
-                itemTextColor = isFocused ? baseInk : ((baseInk & 0x00FFFFFF) | 0xD8000000);
+                int alpha = Math.round(212 + 43 * focusAmt); // 0.83 unfocused -> 1.0 focused
+                itemTextColor = (baseInk & 0x00FFFFFF) | (alpha << 24);
             }
 
             float centerX = tx + tileW * 0.5f;
+            float tileCenterY = tileTopY + tileH * 0.5f;
+
+            if (itemZoom != 1f) {
+                canvas.save();
+                canvas.scale(itemZoom, itemZoom, centerX, tileCenterY);
+            }
+
             float iconBox = Math.round((iconsOnly ? 76f : 72f) * scale);
             float iconCenterY = iconsOnly
                     ? (tileTopY + tileH * 0.5f + liftY)
@@ -542,10 +555,14 @@ public class NativeHomeView extends View {
                         : (tileBottomY - 24f * scale + liftY);
                 canvas.drawText(label, centerX - tw * 0.5f, textY, textPaint);
             }
+
+            if (itemZoom != 1f) {
+                canvas.restore();
+            }
         }
         canvas.restore();
 
-        // 4. Floating Label (in icons-only mode) or Arrange Mode Action Bar
+        // 4. Floating Label in Icons-Only Mode (NO background shape, optional Bottom or Top!) or Arrange Mode Action Bar
         if (arrangeMode && appZoneFocused && appIndex < n) {
             String hint = "◄ ► Verschieben  ·  ▼ Runter = Entfernen (" + apps.get(appIndex).label + ")  ·  OK = Fertig";
             textPaint.setTextSize(24f);
@@ -558,25 +575,35 @@ public class NativeHomeView extends View {
             canvas.drawRoundRect(dstRect, 24f, 24f, paint);
             textPaint.setColor(Color.WHITE);
             canvas.drawText(hint, hx + 22f, pillBottom - 16f, textPaint);
-        } else if (iconsOnly && (appZoneFocused || (screen == SCREEN_DETAIL && "layout".equals(currentDetailGroup))) && appIndex < n) {
+        } else if (iconsOnly && appZoneFocused && appIndex < n) {
             String focusedName = apps.get(appIndex).label;
-            textPaint.setTextSize(Math.max(20f, Math.round(28f * scale)));
+            textPaint.setTextSize(Math.max(22f, Math.round(32f * scale)));
             float nameW = textPaint.measureText(focusedName);
-            float pillW = nameW + 40f;
             float focusCenterX = animFocusX + animFocusW * 0.5f;
-            float pillLeft = Math.max(64f, Math.min(1856f - pillW, focusCenterX - pillW * 0.5f));
-            float pillBottom = dockTop - 14f;
-            if (pillBottom < 130f) pillBottom = dockTop + totalDockH + 62f;
-            float pillTop = pillBottom - 48f;
+            float textLeft = Math.max(64f, Math.min(1856f - nameW, focusCenterX - nameW * 0.5f));
 
-            dstRect.set(pillLeft, pillTop, pillLeft + pillW, pillBottom);
-            paint.setColor(0xCC12151B);
-            canvas.drawRoundRect(dstRect, 24f, 24f, paint);
+            float ty;
+            if ("top".equals(config.labelpos)) {
+                ty = dockTop - 20f * scale;
+                if (ty < 100f) {
+                    ty = dockTop + totalDockH + 40f * scale;
+                }
+            } else {
+                // Default: "bottom" (below the dock)
+                ty = dockTop + totalDockH + 40f * scale;
+                if (ty > 1064f) {
+                    ty = dockTop - 20f * scale;
+                }
+            }
 
-            textPaint.setColor(Color.WHITE);
-            Paint.FontMetrics fm = textPaint.getFontMetrics();
-            float ty = (pillTop + pillBottom) * 0.5f - (fm.ascent + fm.descent) * 0.5f;
-            canvas.drawText(focusedName, pillLeft + 20f, ty, textPaint);
+            textPaint.setColor(inkColor);
+            if (!isLightBg()) {
+                textPaint.setShadowLayer(12f, 0f, 3f, 0x99080A0E);
+            } else {
+                textPaint.setShadowLayer(6f, 0f, 2f, 0x44FFFFFF);
+            }
+            canvas.drawText(focusedName, textLeft, ty, textPaint);
+            textPaint.clearShadowLayer();
         }
 
         return animating;
@@ -651,35 +678,159 @@ public class NativeHomeView extends View {
         }
     }
 
+    private final RectF bevelRect = new RectF();
+
     /**
-     * Draws a smooth, anti-aliased Frosted Glass rounded container using BitmapShader (no canvas.clipPath!).
+     * Draws a smooth, anti-aliased Frosted Glass or Apple Curved Liquid Glass container using BitmapShader.
      */
     private void drawDockGlassContainer(Canvas canvas, RectF rect, float radius) {
+        boolean appleCurved = "on".equals(config.glasscurve);
+
+        if (appleCurved) {
+            // 1. Soft floating elevation shadow underneath the curved glass dock
+            bevelRect.set(rect.left + 4f, rect.top + 8f, rect.right - 4f, rect.bottom + 10f);
+            paint.setShader(null);
+            paint.setColor(0x2E000000);
+            canvas.drawRoundRect(bevelRect, radius, radius, paint);
+        }
+
         if ("photo".equals(config.bg)) {
             BitmapShader matShader = CleanAssets.getMaterialShaderCached(activity, config.wall, config.material, postInvalidateRunnable);
             if (matShader != null) {
+                CleanAssets.applyMaterialLensMatrix(matShader, config.wall, config.material, appleCurved, rect.centerX(), rect.centerY());
                 shaderPaint.setShader(matShader);
                 canvas.drawRoundRect(rect, radius, radius, shaderPaint);
                 shaderPaint.setShader(null);
-
-                // Subtle frost veil matching .mat-veil in style.css
-                paint.setColor(0x28080E12);
+            } else {
+                paint.setShader(null);
+                paint.setColor(0x7010141B);
                 canvas.drawRoundRect(rect, radius, radius, paint);
-
-                // 1px hairline border matching .mat::after in style.css
-                strokePaint.setStyle(Paint.Style.STROKE);
-                strokePaint.setStrokeWidth(1.5f);
-                strokePaint.setColor(0x3DFFFFFF);
-                canvas.drawRoundRect(rect, radius, radius, strokePaint);
-                return;
             }
+        } else {
+            paint.setShader(null);
+            paint.setColor(isLightBg() ? 0x66FFFFFF : 0x7010141B);
+            canvas.drawRoundRect(rect, radius, radius, paint);
         }
 
-        paint.setColor(0x7010141B);
+        if (appleCurved) {
+            // 2. 3D Convex Dome Curvature Gradient ("leichte Wölbung" like Apple tvOS / visionOS Liquid Glass)
+            LinearGradient domeGrad = new LinearGradient(
+                    0f, rect.top, 0f, rect.bottom,
+                    new int[]{
+                            0x56FFFFFF, // Top curved meniscus highlight
+                            0x24FFFFFF, // Upper glass dome roll-off
+                            0x06FFFFFF, // Crystal clear lens center
+                            0x1204080E, // Subtle equator curvature line
+                            0x2204080E, // Lower glass depth
+                            0x30FFFFFF  // Bottom internal caustic reflection
+                    },
+                    new float[]{0f, 0.18f, 0.45f, 0.56f, 0.86f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            paint.setShader(domeGrad);
+            canvas.drawRoundRect(rect, radius, radius, paint);
+
+            // 3. Horizontal Radial Arch Highlight across the top center of the dock
+            float archRadius = Math.max(220f, rect.width() * 0.62f);
+            RadialGradient archGrad = new RadialGradient(
+                    rect.centerX(), rect.top - rect.height() * 0.15f, archRadius,
+                    new int[]{0x30FFFFFF, 0x10FFFFFF, 0x00FFFFFF},
+                    new float[]{0f, 0.55f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            paint.setShader(archGrad);
+            canvas.drawRoundRect(rect, radius, radius, paint);
+            paint.setShader(null);
+
+            // 4. Inner Curved Cushion Bevel (gives the rounded 3D glass lip around the perimeter)
+            bevelRect.set(rect);
+            bevelRect.inset(2.5f, 2.5f);
+            strokePaint.setStyle(Paint.Style.STROKE);
+            strokePaint.setStrokeWidth(3f);
+            LinearGradient innerBevelGrad = new LinearGradient(
+                    0f, rect.top, 0f, rect.bottom,
+                    new int[]{0x44FFFFFF, 0x08FFFFFF, 0x26FFFFFF},
+                    new float[]{0f, 0.5f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            strokePaint.setShader(innerBevelGrad);
+            canvas.drawRoundRect(bevelRect, Math.max(4f, radius - 2.5f), Math.max(4f, radius - 2.5f), strokePaint);
+
+            // 5. Crisp Fresnel Specular Rim Highlight
+            bevelRect.set(rect);
+            bevelRect.inset(0.75f, 0.75f);
+            strokePaint.setStrokeWidth(1.6f);
+            LinearGradient outerRimGrad = new LinearGradient(
+                    rect.left, rect.top, rect.right, rect.bottom,
+                    new int[]{0xC8FFFFFF, 0x42FFFFFF, 0x88FFFFFF},
+                    new float[]{0f, 0.5f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            strokePaint.setShader(outerRimGrad);
+            canvas.drawRoundRect(bevelRect, radius, radius, strokePaint);
+            strokePaint.setShader(null);
+        } else {
+            // Classic flat frosted glass
+            paint.setShader(null);
+            paint.setColor(0x28080E12);
+            canvas.drawRoundRect(rect, radius, radius, paint);
+
+            strokePaint.setStyle(Paint.Style.STROKE);
+            strokePaint.setStrokeWidth(1.5f);
+            strokePaint.setShader(null);
+            strokePaint.setColor(0x3DFFFFFF);
+            canvas.drawRoundRect(rect, radius, radius, strokePaint);
+        }
+    }
+
+    /**
+     * Draws the inner sliding focus plate (either Apple Curved Glass pill or classic flat glass plate).
+     */
+    private void drawFocusGlassPlate(Canvas canvas, RectF rect, float radius, boolean appZoneFocused) {
+        boolean appleCurved = "on".equals(config.glasscurve);
+        if (appleCurved && appZoneFocused && !arrangeMode) {
+            // Soft floating shadow under the curved focus pill
+            bevelRect.set(rect.left + 2f, rect.top + 4f, rect.right - 2f, rect.bottom + 5f);
+            paint.setShader(null);
+            paint.setColor(0x26000000);
+            canvas.drawRoundRect(bevelRect, radius, radius, paint);
+
+            // Convex 3D glass lens fill on the active focus pill
+            LinearGradient pillGrad = new LinearGradient(
+                    0f, rect.top, 0f, rect.bottom,
+                    new int[]{0x6AFFFFFF, 0x28FFFFFF, 0x0EFFFFFF, 0x32FFFFFF},
+                    new float[]{0f, 0.38f, 0.62f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            paint.setShader(pillGrad);
+            canvas.drawRoundRect(rect, radius, radius, paint);
+            paint.setShader(null);
+
+            // Specular curved rim around the focus pill
+            bevelRect.set(rect);
+            bevelRect.inset(0.8f, 0.8f);
+            strokePaint.setStyle(Paint.Style.STROKE);
+            strokePaint.setStrokeWidth(1.8f);
+            LinearGradient pillRim = new LinearGradient(
+                    0f, rect.top, 0f, rect.bottom,
+                    new int[]{0xD8FFFFFF, 0x44FFFFFF, 0x88FFFFFF},
+                    new float[]{0f, 0.55f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            strokePaint.setShader(pillRim);
+            canvas.drawRoundRect(bevelRect, radius, radius, strokePaint);
+            strokePaint.setShader(null);
+            return;
+        }
+
+        paint.setShader(null);
+        paint.setColor(appZoneFocused ? (arrangeMode ? 0x504E8CFF : 0x36FFFFFF) : 0x1CFFFFFF);
         canvas.drawRoundRect(rect, radius, radius, paint);
+
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeWidth(1.5f);
-        strokePaint.setColor(0x38FFFFFF);
+        strokePaint.setShader(null);
+        strokePaint.setColor(appZoneFocused ? 0x66FFFFFF : 0x28FFFFFF);
         canvas.drawRoundRect(rect, radius, radius, strokePaint);
     }
 
@@ -692,7 +843,10 @@ public class NativeHomeView extends View {
         String layoutLabel = ("dock".equals(config.layout) ? "Dock" : "Liste")
                 + " · Größe " + config.dockScale + "% · X:" + config.dockPosX + "% Y:" + config.dockPosY + "%";
         String fontLabel = "geist".equals(config.font) ? "Geist" : "newsreader".equals(config.font) ? "Newsreader" : "Manrope";
-        String focusLabel = "glass".equals(config.focus) ? ("Glass, " + config.material) : "Type";
+        String dockLabel = ("glass".equals(config.focus)
+                ? ("on".equals(config.glasscurve) ? "Apple Glas (Wölbung)" : "Glas (" + config.material + ")")
+                : "Minimal")
+                + ("on".equals(config.focuszoom) ? " · Fokus-Zoom Ein" : "");
         String appsCount = config.homeApps.size() + " Apps (Hinzufügen / Entfernen)";
         String ramStatus = activity.getRamStatusText();
 
@@ -700,7 +854,7 @@ public class NativeHomeView extends View {
                 {"background", "Hintergrund", wallLabel},
                 {"layout", "Layout, Position & Art Mode", layoutLabel},
                 {"typography", "Schriftart", fontLabel},
-                {"focus", "Fokus & Glas-Stil", focusLabel},
+                {"focus", "Dock", dockLabel},
                 {"editor", "Apps auf dem Homescreen", appsCount},
                 {"samsung", "Launcher & System", "Projectivy & Standard-App"},
                 {"ram", "Arbeitsspeicher leeren", ramStatus}
@@ -842,6 +996,9 @@ public class NativeHomeView extends View {
             list.add(new DetailRowSpec("App-Beschriftung", "apps",
                     new String[]{"icons", "both", "text"},
                     new String[]{"Nur Icons", "Icons & Text", "Nur Text"}));
+            list.add(new DetailRowSpec("App-Name Position (bei „Nur Icons“)", "labelpos",
+                    new String[]{"bottom", "top"},
+                    new String[]{"Unten (unter Dock)", "Oben (über Dock)"}));
             list.add(new DetailRowSpec("Art Mode (Nur CleanScreen)", "artmode",
                     new String[]{"on", "off"},
                     new String[]{"Aktiv", "Aus"}));
@@ -856,10 +1013,19 @@ public class NativeHomeView extends View {
                     new String[]{"manrope", "geist", "newsreader"},
                     new String[]{"Manrope / Outfit", "Geist Sans", "Newsreader Serif"}));
         } else if ("focus".equals(group)) {
-            list.add(new DetailRowSpec("Fokus-Stil", "focus",
+            list.add(new DetailRowSpec("Ausgewählte App vergrößern", "focuszoom",
+                    new String[]{"on", "off"},
+                    new String[]{"Aktiv (Leicht größer)", "Aus (Gleiche Größe)"}));
+            list.add(new DetailRowSpec("Glas-Effekt & Wölbung", "glasscurve",
+                    new String[]{"on", "off"},
+                    new String[]{"Apple Glas (Mit Wölbung)", "Klassisch (Flach)"}));
+            list.add(new DetailRowSpec("App-Name Position (bei „Nur Icons“)", "labelpos",
+                    new String[]{"bottom", "top"},
+                    new String[]{"Unten (unter Dock)", "Oben (über Dock)"}));
+            list.add(new DetailRowSpec("Dock- & Fokus-Stil", "focus",
                     new String[]{"glass", "type"},
-                    new String[]{"Glas (Frosted)", "Minimal (Type)"}));
-            list.add(new DetailRowSpec("Glas-Material", "material",
+                    new String[]{"Glas-Dock", "Minimal (Ohne Dock)"}));
+            list.add(new DetailRowSpec("Glas-Trübung", "material",
                     new String[]{"frost", "soft", "tint"},
                     new String[]{"Frost", "Weichzeichner", "Klares Glas"}));
         } else if ("samsung".equals(group)) {
@@ -887,10 +1053,13 @@ public class NativeHomeView extends View {
         if ("iconstyle".equals(axis)) return config.iconstyle;
         if ("artmode".equals(axis)) return config.artmode;
         if ("apps".equals(axis)) return config.apps;
+        if ("labelpos".equals(axis)) return config.labelpos;
         if ("controls".equals(axis)) return config.controls;
         if ("font".equals(axis)) return config.font;
         if ("focus".equals(axis)) return config.focus;
         if ("material".equals(axis)) return config.material;
+        if ("focuszoom".equals(axis)) return config.focuszoom;
+        if ("glasscurve".equals(axis)) return config.glasscurve;
         if ("action.default".equals(axis)) return activity.isDefaultLauncher() ? "clean" : "projectivy";
         return "";
     }
@@ -905,6 +1074,7 @@ public class NativeHomeView extends View {
             resetIdleTimer();
         }
         else if ("apps".equals(axis)) config.apps = val;
+        else if ("labelpos".equals(axis)) config.labelpos = val;
         else if ("controls".equals(axis)) config.controls = val;
         else if ("font".equals(axis)) {
             config.font = val;
@@ -915,30 +1085,32 @@ public class NativeHomeView extends View {
             config.material = val;
             preloadWallpaperAsync(config.wall);
         }
+        else if ("focuszoom".equals(axis)) config.focuszoom = val;
+        else if ("glasscurve".equals(axis)) config.glasscurve = val;
         config.save(activity);
     }
 
     private void drawDetailSheet(Canvas canvas) {
-        boolean isLayoutLive = "layout".equals(currentDetailGroup);
-        String title = isLayoutLive ? "Layout & Live-Position"
+        boolean isLivePreview = "layout".equals(currentDetailGroup) || "focus".equals(currentDetailGroup);
+        String title = "layout".equals(currentDetailGroup) ? "Layout & Live-Position"
                 : "background".equals(currentDetailGroup) ? "Hintergrund"
                 : "typography".equals(currentDetailGroup) ? "Schriftart"
-                : "focus".equals(currentDetailGroup) ? "Fokus & Glas" : "Launcher & System";
-        String sub = isLayoutLive
+                : "focus".equals(currentDetailGroup) ? "Dock" : "Launcher & System";
+        String sub = "layout".equals(currentDetailGroup)
                 ? "◄ ► Regler live verschieben  ·  OK = Standardwert  ·  Zurück = Menü"
                 : "◄ ► Option wählen  ·  OK = Übernehmen  ·  Zurück = Hauptmenü";
-        drawSheetBackdrop(canvas, title, sub, isLayoutLive);
+        drawSheetBackdrop(canvas, title, sub, isLivePreview);
 
         List<DetailRowSpec> specs = getDetailSpecs(currentDetailGroup);
         if (detailRow >= specs.size()) detailRow = specs.size() - 1;
         if (detailRow < 0) detailRow = 0;
 
-        int maxVisibleRows = isLayoutLive ? 4 : 6;
+        int maxVisibleRows = isLivePreview ? 4 : 6;
         int firstRow = Math.max(0, Math.min(detailRow - (maxVisibleRows / 2), Math.max(0, specs.size() - maxVisibleRows)));
-        float startY = isLayoutLive ? 142f : 188f;
-        float sectionH = isLayoutLive ? 116f : 132f;
-        float leftX = isLayoutLive ? 1040f : 1044f;
-        float totalW = isLayoutLive ? 804f : 812f;
+        float startY = isLivePreview ? 142f : 188f;
+        float sectionH = isLivePreview ? 116f : 132f;
+        float leftX = isLivePreview ? 1040f : 1044f;
+        float totalW = isLivePreview ? 804f : 812f;
 
         for (int s = 0; s < Math.min(specs.size(), maxVisibleRows); s++) {
             int r = firstRow + s;
@@ -950,7 +1122,7 @@ public class NativeHomeView extends View {
             canvas.drawText(spec.title, leftX, y + 24f, textPaint);
 
             float btnY = y + 36f;
-            float btnH = isLayoutLive ? 64f : 72f;
+            float btnH = isLivePreview ? 64f : 72f;
 
             if (spec.isSlider) {
                 boolean isFocused = (r == detailRow);
