@@ -375,7 +375,7 @@ public class CleanAssets {
                 // Apply optical scaling matching CleanScreen metrics.js
                 float scale = 0.78f;
                 if ("com.disney.disneyplus".equals(pkg)) scale = 0.92f;
-                else if ("com.amazon.amazonvideo.livingroom".equals(pkg)) scale = 0.95f;
+                else if ("com.amazon.amazonvideo.livingroom".equals(pkg)) scale = 0.88f;
                 else if ("com.netflix.ninja".equals(pkg)) scale = 0.72f;
                 else if ("com.google.android.youtube.tv".equals(pkg)) scale = 0.76f;
                 else if ("com.spotify.tv.android".equals(pkg)) scale = 0.74f;
