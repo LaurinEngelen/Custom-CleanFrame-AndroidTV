@@ -38,6 +38,10 @@ public class CleanAssets {
     private static final Map<String, BitmapShader> shaderCache = new ConcurrentHashMap<>();
     private static final Map<String, Typeface> fontCache = new ConcurrentHashMap<>();
     private static final Map<Integer, Drawable> vectorDrawableCache = new ConcurrentHashMap<>();
+    private static final LruCache<String, Bitmap> brandBitmapCache = new LruCache<>(64);
+    private static final LruCache<String, Bitmap> uiIconBitmapCache = new LruCache<>(32);
+    private static final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
+    private static final RectF iconDstRect = new RectF();
     private static final Set<String> pendingLoads = Collections.synchronizedSet(new HashSet<>());
 
     private static synchronized ZipFile getZip() {
@@ -299,14 +303,32 @@ public class CleanAssets {
         else if ("settings".equals(iconName)) resId = R.drawable.ic_clean_settings;
 
         if (resId != 0) {
-            Drawable d = getVectorDrawable(ctx, resId);
-            if (d != null) {
-                int half = Math.round(size * 0.5f);
+            int half = Math.max(8, Math.round(size * 0.5f));
+            int dim = half * 2;
+            int alpha = (color >>> 24) & 0xFF;
+            int opaqueColor = color | 0xFF000000;
+            String cacheKey = iconName + ":" + dim + ":" + Integer.toHexString(opaqueColor);
+            Bitmap cached = uiIconBitmapCache.get(cacheKey);
+            if (cached == null || cached.isRecycled()) {
+                Drawable d = getVectorDrawable(ctx, resId);
+                if (d != null) {
+                    try {
+                        cached = Bitmap.createBitmap(dim, dim, Bitmap.Config.ARGB_8888);
+                        Canvas bCanvas = new Canvas(cached);
+                        d.setTint(opaqueColor);
+                        d.setBounds(0, 0, dim, dim);
+                        d.draw(bCanvas);
+                        cached.setHasMipMap(true);
+                        uiIconBitmapCache.put(cacheKey, cached);
+                    } catch (Throwable ignored) {}
+                }
+            }
+            if (cached != null && !cached.isRecycled()) {
                 int icx = Math.round(cx);
                 int icy = Math.round(cy);
-                d.setTint(color);
-                d.setBounds(icx - half, icy - half, icx + half, icy + half);
-                d.draw(c);
+                bitmapPaint.setAlpha(alpha);
+                c.drawBitmap(cached, icx - half, icy - half, bitmapPaint);
+                bitmapPaint.setAlpha(255);
                 return;
             }
         }
@@ -367,25 +389,84 @@ public class CleanAssets {
         }
     }
 
-    public static void drawCleanBrandMark(Context ctx, Canvas c, String pkg, String appName, float cx, float cy, float boxSize, int color, Paint textPaint, Paint strokePaint) {
+    public static void prewarmBrandMark(Context ctx, String pkg, float boxSize, int color) {
         int vectorRes = getCleanBrandVectorRes(pkg);
-        if (vectorRes != 0) {
+        if (vectorRes == 0) return;
+        float scale = 0.78f;
+        if ("com.disney.disneyplus".equals(pkg)) scale = 0.92f;
+        else if ("com.amazon.amazonvideo.livingroom".equals(pkg)) scale = 0.88f;
+        else if ("com.netflix.ninja".equals(pkg)) scale = 0.72f;
+        else if ("com.google.android.youtube.tv".equals(pkg)) scale = 0.76f;
+        else if ("com.spotify.tv.android".equals(pkg)) scale = 0.74f;
+
+        int rasterHalf = Math.max(8, Math.round(boxSize * scale * 0.5f));
+        int rasterDim = rasterHalf * 2;
+        int opaqueColor = color | 0xFF000000;
+        String cacheKey = pkg + ":" + rasterDim + ":" + Integer.toHexString(opaqueColor);
+        Bitmap cached = brandBitmapCache.get(cacheKey);
+        if (cached == null || cached.isRecycled()) {
             Drawable d = getVectorDrawable(ctx, vectorRes);
             if (d != null) {
-                // Apply optical scaling matching CleanScreen metrics.js
-                float scale = 0.78f;
-                if ("com.disney.disneyplus".equals(pkg)) scale = 0.92f;
-                else if ("com.amazon.amazonvideo.livingroom".equals(pkg)) scale = 0.88f;
-                else if ("com.netflix.ninja".equals(pkg)) scale = 0.72f;
-                else if ("com.google.android.youtube.tv".equals(pkg)) scale = 0.76f;
-                else if ("com.spotify.tv.android".equals(pkg)) scale = 0.74f;
+                try {
+                    cached = Bitmap.createBitmap(rasterDim, rasterDim, Bitmap.Config.ARGB_8888);
+                    Canvas bCanvas = new Canvas(cached);
+                    d.setTint(opaqueColor);
+                    d.setBounds(0, 0, rasterDim, rasterDim);
+                    d.draw(bCanvas);
+                    cached.setHasMipMap(true);
+                    brandBitmapCache.put(cacheKey, cached);
+                } catch (Throwable ignored) {}
+            }
+        }
+    }
 
-                int half = Math.round(boxSize * scale * 0.5f);
-                int icx = Math.round(cx);
-                int icy = Math.round(cy);
-                d.setTint(color);
-                d.setBounds(icx - half, icy - half, icx + half, icy + half);
-                d.draw(c);
+    public static void drawCleanBrandMark(Context ctx, Canvas c, String pkg, String appName, float cx, float cy, float boxSize, int color, Paint textPaint, Paint strokePaint) {
+        drawCleanBrandMark(ctx, c, pkg, appName, cx, cy, boxSize, boxSize, color, textPaint, strokePaint);
+    }
+
+    public static void drawCleanBrandMark(Context ctx, Canvas c, String pkg, String appName, float cx, float cy, float drawBoxSize, float rasterBoxSize, int color, Paint textPaint, Paint strokePaint) {
+        int vectorRes = getCleanBrandVectorRes(pkg);
+        if (vectorRes != 0) {
+            // Apply optical scaling matching CleanScreen metrics.js
+            float scale = 0.78f;
+            if ("com.disney.disneyplus".equals(pkg)) scale = 0.92f;
+            else if ("com.amazon.amazonvideo.livingroom".equals(pkg)) scale = 0.88f;
+            else if ("com.netflix.ninja".equals(pkg)) scale = 0.72f;
+            else if ("com.google.android.youtube.tv".equals(pkg)) scale = 0.76f;
+            else if ("com.spotify.tv.android".equals(pkg)) scale = 0.74f;
+
+            int rasterHalf = Math.max(8, Math.round(rasterBoxSize * scale * 0.5f));
+            int rasterDim = rasterHalf * 2;
+            int alpha = (color >>> 24) & 0xFF;
+            int opaqueColor = color | 0xFF000000;
+            String cacheKey = pkg + ":" + rasterDim + ":" + Integer.toHexString(opaqueColor);
+            Bitmap cached = brandBitmapCache.get(cacheKey);
+            if (cached == null || cached.isRecycled()) {
+                Drawable d = getVectorDrawable(ctx, vectorRes);
+                if (d != null) {
+                    try {
+                        cached = Bitmap.createBitmap(rasterDim, rasterDim, Bitmap.Config.ARGB_8888);
+                        Canvas bCanvas = new Canvas(cached);
+                        d.setTint(opaqueColor);
+                        d.setBounds(0, 0, rasterDim, rasterDim);
+                        d.draw(bCanvas);
+                        cached.setHasMipMap(true);
+                        brandBitmapCache.put(cacheKey, cached);
+                    } catch (Throwable ignored) {}
+                }
+            }
+            if (cached != null && !cached.isRecycled()) {
+                bitmapPaint.setAlpha(alpha);
+                if (Math.abs(drawBoxSize - rasterBoxSize) < 0.05f) {
+                    int icx = Math.round(cx);
+                    int icy = Math.round(cy);
+                    c.drawBitmap(cached, icx - rasterHalf, icy - rasterHalf, bitmapPaint);
+                } else {
+                    float drawHalf = drawBoxSize * scale * 0.5f;
+                    iconDstRect.set(cx - drawHalf, cy - drawHalf, cx + drawHalf, cy + drawHalf);
+                    c.drawBitmap(cached, null, iconDstRect, bitmapPaint);
+                }
+                bitmapPaint.setAlpha(255);
                 return;
             }
         }
@@ -400,7 +481,7 @@ public class CleanAssets {
             mono += parts[0].substring(1, 2).toUpperCase();
         }
 
-        float boxR = boxSize * 0.42f;
+        float boxR = drawBoxSize * 0.42f;
         RectF monoRect = new RectF(cx - boxR, cy - boxR, cx + boxR, cy + boxR);
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeWidth(2.2f);
@@ -410,7 +491,7 @@ public class CleanAssets {
         float oldSize = textPaint.getTextSize();
         int oldCol = textPaint.getColor();
         textPaint.setColor(color);
-        textPaint.setTextSize(boxSize * 0.38f);
+        textPaint.setTextSize(drawBoxSize * 0.38f);
         float tw = textPaint.measureText(mono);
         Paint.FontMetrics fm = textPaint.getFontMetrics();
         c.drawText(mono, cx - tw * 0.5f, cy - (fm.ascent + fm.descent) * 0.5f, textPaint);
