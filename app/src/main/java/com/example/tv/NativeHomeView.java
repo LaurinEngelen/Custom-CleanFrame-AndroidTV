@@ -1156,6 +1156,9 @@ public class NativeHomeView extends View {
             list.add(new DetailRowSpec("Autostart bei TV-Neustart (Keine Channels)", "autostart",
                     new String[]{"on", "off"},
                     new String[]{"Aktiv (Sofort CleanScreen)", "Aus"}));
+            list.add(new DetailRowSpec("Spotify Screensaver-Sperre", "spotifyscreensaver",
+                    new String[]{"on", "off"},
+                    new String[]{"Aktiv (Bildschirm bleibt an bei Musik)", "Aus (Normaler Screensaver)"}));
             list.add(new DetailRowSpec("Dauerhafter Standard-Launcher (Home-Taste)", "action.default",
                     new String[]{"clean", "system"},
                     new String[]{
@@ -1201,6 +1204,7 @@ public class NativeHomeView extends View {
         if ("clockglass".equals(axis)) return config.clockglass;
         if ("clocktitle".equals(axis)) return config.clocktitle;
         if ("autostart".equals(axis)) return config.autostart;
+        if ("spotifyscreensaver".equals(axis)) return config.spotifyscreensaver;
         if ("action.default".equals(axis)) return activity.isDefaultLauncher() ? "clean" : "system";
         return "";
     }
@@ -1237,6 +1241,7 @@ public class NativeHomeView extends View {
         else if ("clockglass".equals(axis)) config.clockglass = val;
         else if ("clocktitle".equals(axis)) config.clocktitle = val;
         else if ("autostart".equals(axis)) config.autostart = val;
+        else if ("spotifyscreensaver".equals(axis)) config.spotifyscreensaver = val;
         config.save(activity);
     }
 

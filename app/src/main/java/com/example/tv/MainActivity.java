@@ -61,6 +61,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         TvInputHelper.ensureGlobalKeyWatcherStarted(this);
+        SpotifyKeepAwakeManager.init(this);
 
         config = CleanConfig.load(this);
         ensureDefaultFallbackEntries();

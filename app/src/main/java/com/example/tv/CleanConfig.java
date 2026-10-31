@@ -78,6 +78,7 @@ public class CleanConfig {
     public String clockglass = "off";    // off, apple, frost
     public String clocktitle = "on";     // on, off (show artwork title next to clock)
     public String autostart = "on";      // on (start CleanScreen immediately on TV boot), off
+    public String spotifyscreensaver = "on"; // on (keep screen awake when Spotify plays music), off
 
     public final List<String> homeApps = new ArrayList<>();
 
@@ -109,6 +110,7 @@ public class CleanConfig {
         c.clockglass = sp.getString("clockglass", "off");
         c.clocktitle = sp.getString("clocktitle", "on");
         c.autostart = sp.getString("autostart", "on");
+        c.spotifyscreensaver = sp.getString("spotifyscreensaver", "on");
 
         String homeJson = sp.getString("homeApps", null);
         if (homeJson != null) {
@@ -158,6 +160,7 @@ public class CleanConfig {
         ed.putString("clockglass", clockglass);
         ed.putString("clocktitle", clocktitle);
         ed.putString("autostart", autostart);
+        ed.putString("spotifyscreensaver", spotifyscreensaver);
 
         JSONArray arr = new JSONArray();
         for (String pkg : homeApps) {

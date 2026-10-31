@@ -64,6 +64,7 @@ Ursprünglich inspiriert von Nathan Clarks *CleanFrame* für Samsung The Frame, 
 
 ### 6. Autostart & Intelligente Launcher-Verwaltung
 - **Keine störenden Channels beim TV-Neustart:** Ein nativer `BootReceiver` und der integrierte Barrierefreiheitsdienst sichern den direkten Start von CleanScreen nach dem Einschalten.
+- **Spotify Screensaver-Sperre:** Verhindert automatisch den Google Screensaver / Ambient Mode, solange Musik in Spotify läuft. Albumcover, Titel und Songtexte bleiben dauerhaft sichtbar. Sobald die Musik pausiert oder Spotify verlassen wird, schaltet sich der normale Screensaver zum Schutz des Displays wieder ein. In den Einstellungen unter *Launcher & System* an- und abschaltbar.
 - **Dynamischer Launcher-Wechsler:** Erkennt automatisch andere installierte Launcher auf dem Gerät und ermöglicht den nahtlosen Wechsel.
 - **Standard-App-Zuweisung:** CleanScreen lässt sich dauerhaft als Standard-Launcher für die Home-Taste festlegen.
 
@@ -88,6 +89,7 @@ flowchart TD
     Boot[TV Boot / Einschalten] -->|BOOT_COMPLETED| BootReceiver[BootReceiver.java]
     BootReceiver -->|Bring to Front| MainActivity
     Accessibility[TvKeyAccessibilityService] -->|Source / Home Keys| MainActivity
+    SpotifyManager[SpotifyKeepAwakeManager] -->|Inhibit Ambient Screensaver| PowerManager[Android PowerManager WakeLock]
 ```
 
 ---
