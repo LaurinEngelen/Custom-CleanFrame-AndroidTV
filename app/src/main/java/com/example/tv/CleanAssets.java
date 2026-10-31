@@ -38,6 +38,8 @@ public class CleanAssets {
     private static final Map<String, BitmapShader> shaderCache = new ConcurrentHashMap<>();
     private static final Map<String, Typeface> fontCache = new ConcurrentHashMap<>();
     private static final Map<Integer, Drawable> vectorDrawableCache = new ConcurrentHashMap<>();
+    private static final LruCache<String, Bitmap> brandBitmapCache = new LruCache<>(48);
+    private static final LruCache<String, Bitmap> uiIconBitmapCache = new LruCache<>(24);
     private static final Set<String> pendingLoads = Collections.synchronizedSet(new HashSet<>());
 
     private static synchronized ZipFile getZip() {
@@ -299,14 +301,24 @@ public class CleanAssets {
         else if ("settings".equals(iconName)) resId = R.drawable.ic_clean_settings;
 
         if (resId != 0) {
-            Drawable d = getVectorDrawable(ctx, resId);
-            if (d != null) {
-                int half = Math.round(size * 0.5f);
-                int icx = Math.round(cx);
-                int icy = Math.round(cy);
-                d.setTint(color);
-                d.setBounds(icx - half, icy - half, icx + half, icy + half);
-                d.draw(c);
+            int dim = Math.max(16, (Math.round(size) + 1) & ~1);
+            String cacheKey = iconName + ":" + dim + ":" + Integer.toHexString(color);
+            Bitmap cached = uiIconBitmapCache.get(cacheKey);
+            if (cached == null || cached.isRecycled()) {
+                Drawable d = getVectorDrawable(ctx, resId);
+                if (d != null) {
+                    try {
+                        cached = Bitmap.createBitmap(dim, dim, Bitmap.Config.ARGB_8888);
+                        Canvas bCanvas = new Canvas(cached);
+                        d.setTint(color);
+                        d.setBounds(0, 0, dim, dim);
+                        d.draw(bCanvas);
+                        uiIconBitmapCache.put(cacheKey, cached);
+                    } catch (Throwable ignored) {}
+                }
+            }
+            if (cached != null && !cached.isRecycled()) {
+                c.drawBitmap(cached, cx - dim * 0.5f, cy - dim * 0.5f, null);
                 return;
             }
         }
@@ -370,22 +382,31 @@ public class CleanAssets {
     public static void drawCleanBrandMark(Context ctx, Canvas c, String pkg, String appName, float cx, float cy, float boxSize, int color, Paint textPaint, Paint strokePaint) {
         int vectorRes = getCleanBrandVectorRes(pkg);
         if (vectorRes != 0) {
-            Drawable d = getVectorDrawable(ctx, vectorRes);
-            if (d != null) {
-                // Apply optical scaling matching CleanScreen metrics.js
-                float scale = 0.78f;
-                if ("com.disney.disneyplus".equals(pkg)) scale = 0.92f;
-                else if ("com.amazon.amazonvideo.livingroom".equals(pkg)) scale = 0.88f;
-                else if ("com.netflix.ninja".equals(pkg)) scale = 0.72f;
-                else if ("com.google.android.youtube.tv".equals(pkg)) scale = 0.76f;
-                else if ("com.spotify.tv.android".equals(pkg)) scale = 0.74f;
+            float scale = 0.78f;
+            if ("com.disney.disneyplus".equals(pkg)) scale = 0.92f;
+            else if ("com.amazon.amazonvideo.livingroom".equals(pkg)) scale = 0.88f;
+            else if ("com.netflix.ninja".equals(pkg)) scale = 0.72f;
+            else if ("com.google.android.youtube.tv".equals(pkg)) scale = 0.76f;
+            else if ("com.spotify.tv.android".equals(pkg)) scale = 0.74f;
 
-                int half = Math.round(boxSize * scale * 0.5f);
-                int icx = Math.round(cx);
-                int icy = Math.round(cy);
-                d.setTint(color);
-                d.setBounds(icx - half, icy - half, icx + half, icy + half);
-                d.draw(c);
+            int dim = Math.max(16, (Math.round(boxSize * scale) + 1) & ~1);
+            String cacheKey = pkg + ":" + dim + ":" + Integer.toHexString(color);
+            Bitmap cached = brandBitmapCache.get(cacheKey);
+            if (cached == null || cached.isRecycled()) {
+                Drawable d = getVectorDrawable(ctx, vectorRes);
+                if (d != null) {
+                    try {
+                        cached = Bitmap.createBitmap(dim, dim, Bitmap.Config.ARGB_8888);
+                        Canvas bCanvas = new Canvas(cached);
+                        d.setTint(color);
+                        d.setBounds(0, 0, dim, dim);
+                        d.draw(bCanvas);
+                        brandBitmapCache.put(cacheKey, cached);
+                    } catch (Throwable ignored) {}
+                }
+            }
+            if (cached != null && !cached.isRecycled()) {
+                c.drawBitmap(cached, cx - dim * 0.5f, cy - dim * 0.5f, null);
                 return;
             }
         }
