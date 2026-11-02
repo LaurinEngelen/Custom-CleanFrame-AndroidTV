@@ -345,10 +345,10 @@ Führe per ADB folgende Diagnose- und Reparaturbefehle auf dem Fernseher (`192.1
 ---
 
 ## Checkliste für den Abschluss (für Gemini 3.8 Flash)
-- [ ] **TODO 1** in `TvKeyAccessibilityService.java` und `SpotifyKeepAwakeManager.java` umgesetzt.
-- [ ] **TODO 2** in `CleanConfig.java`, `CleanMediaListenerService.java`, `SpotifyNowPlayingManager.java`, `AndroidManifest.xml` und `NativeHomeView.java` umgesetzt.
-- [ ] **TODO 3** in `MainActivity.java` (`keepPkgs`) umgesetzt und `com.google.android.apps.mediashell` via ADB bereinigt (`pm clear`).
-- [ ] APK mit `.\gradlew assembleDebug --console=plain` gebaut.
-- [ ] APK via `adb -s 192.168.178.22:5555 install --fastdeploy -r app\build\outputs\apk\debug\app-debug.apk` installiert.
-- [ ] Notification-Listener-Berechtigung via `adb -s 192.168.178.22:5555 shell "cmd notification allow_listener com.example.tv/com.example.tv.CleanMediaListenerService"` gesetzt.
-- [ ] Änderungen auf GitHub (`git push origin main`) gepusht.
+- [x] **TODO 1** in `TvKeyAccessibilityService.java` und `SpotifyKeepAwakeManager.java` umgesetzt.
+- [x] **TODO 2** in `CleanConfig.java`, `CleanMediaListenerService.java`, `SpotifyNowPlayingManager.java`, `AndroidManifest.xml` und `NativeHomeView.java` umgesetzt (inkl. variabler Widget-Breite, Track-Fortschrittsbalken und 30s Auto-Hide).
+- [x] **TODO 3** in `MainActivity.java` (`keepPkgs`) umgesetzt und `com.google.android.apps.mediashell` fehlerhaftes Play-Store-Update deinstalliert & Werksversion aktiviert (`pm uninstall` + `pm clear`).
+- [x] APK mit `.\gradlew assembleDebug --console=plain` gebaut.
+- [x] APK via ADB auf dem Fernseher installiert.
+- [x] Notification-Listener-Berechtigung via `cmd notification allow_listener` gesetzt.
+- [x] Änderungen auf GitHub (`git push origin main`) gepusht.
