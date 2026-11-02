@@ -28,6 +28,10 @@ public class SpotifyNowPlayingManager {
     public static volatile String artist = "";
     public static volatile Bitmap albumArt = null;
     public static volatile boolean isPlaying = false;
+    public static volatile long trackDurationMs = 0L;
+    public static volatile long positionMs = 0L;
+    public static volatile long positionUpdateRealtime = 0L;
+    public static volatile long lastPlayedTimeMs = 0L;
     private static volatile String lastArtUri = "";
 
     private static final Handler handler = new Handler(Looper.getMainLooper());
@@ -45,6 +49,12 @@ public class SpotifyNowPlayingManager {
         public void onPlaybackStateChanged(PlaybackState state) {
             if (state != null) {
                 isPlaying = (state.getState() == PlaybackState.STATE_PLAYING);
+                positionMs = state.getPosition();
+                long updateTime = state.getLastPositionUpdateTime();
+                positionUpdateRealtime = updateTime > 0 ? updateTime : android.os.SystemClock.elapsedRealtime();
+                if (isPlaying) {
+                    lastPlayedTimeMs = System.currentTimeMillis();
+                }
             }
             notifyUpdate();
         }
@@ -63,6 +73,30 @@ public class SpotifyNowPlayingManager {
 
     public static boolean hasActiveTrack() {
         return (title != null && !title.isEmpty());
+    }
+
+    public static boolean isVisibleOnHome() {
+        if (title == null || title.trim().isEmpty()) return false;
+        if (isPlaying) {
+            lastPlayedTimeMs = System.currentTimeMillis();
+            return true;
+        }
+        if (lastPlayedTimeMs <= 0L) return false;
+        long diff = System.currentTimeMillis() - lastPlayedTimeMs;
+        return diff >= 0 && diff <= 30000L;
+    }
+
+    public static float getProgressFraction() {
+        if (trackDurationMs <= 0) return 0f;
+        long current = positionMs;
+        if (isPlaying && positionUpdateRealtime > 0) {
+            long delta = android.os.SystemClock.elapsedRealtime() - positionUpdateRealtime;
+            if (delta > 0) {
+                current += delta;
+            }
+        }
+        float frac = (float) current / (float) trackDurationMs;
+        return Math.max(0f, Math.min(1f, frac));
     }
 
     public static void init(Context context) {
@@ -122,6 +156,12 @@ public class SpotifyNowPlayingManager {
                 PlaybackState ps = activeController.getPlaybackState();
                 if (ps != null) {
                     isPlaying = (ps.getState() == PlaybackState.STATE_PLAYING);
+                    positionMs = ps.getPosition();
+                    long updateTime = ps.getLastPositionUpdateTime();
+                    positionUpdateRealtime = updateTime > 0 ? updateTime : android.os.SystemClock.elapsedRealtime();
+                    if (isPlaying) {
+                        lastPlayedTimeMs = System.currentTimeMillis();
+                    }
                 }
                 updateFromMetadata(activeController.getMetadata());
             }
@@ -172,6 +212,10 @@ public class SpotifyNowPlayingManager {
     private static void updateFromMetadata(MediaMetadata mm) {
         if (mm == null) return;
         try {
+            long dur = mm.getLong(MediaMetadata.METADATA_KEY_DURATION);
+            if (dur > 0) {
+                trackDurationMs = dur;
+            }
             String t = mm.getString(MediaMetadata.METADATA_KEY_TITLE);
             if (t != null && !t.isEmpty()) {
                 title = t.trim();

@@ -272,6 +272,15 @@ public class NativeHomeView extends View {
 
         if (needsMoreFrames) {
             postInvalidateOnAnimation();
+        } else if (!"off".equals(config.spotifywidget)) {
+            if (SpotifyNowPlayingManager.isPlaying) {
+                postInvalidateDelayed(1000);
+            } else if (SpotifyNowPlayingManager.isVisibleOnHome()) {
+                long remainingMs = 30000L - (System.currentTimeMillis() - SpotifyNowPlayingManager.lastPlayedTimeMs);
+                if (remainingMs > 0) {
+                    postInvalidateDelayed(Math.min(1000, remainingMs + 50));
+                }
+            }
         }
     }
 
@@ -342,6 +351,8 @@ public class NativeHomeView extends View {
     private final RectF clockPillRect = new RectF();
     private final RectF spotWidgetRect = new RectF();
     private final RectF spotArtRect = new RectF();
+    private final RectF spotBarBgRect = new RectF();
+    private final RectF spotBarActiveRect = new RectF();
     private final android.graphics.Path spotArtClipPath = new android.graphics.Path();
 
     private void drawClockWidget(Canvas canvas, int inkColor, int muteColor) {
@@ -470,33 +481,23 @@ public class NativeHomeView extends View {
         if ("off".equals(config.spotifywidget)) return;
 
         boolean isPreview = (screen == SCREEN_DETAIL && "spotify".equals(currentDetailGroup));
-        boolean hasTrack = SpotifyNowPlayingManager.hasActiveTrack();
-        if (!hasTrack && !isPreview) return;
+        boolean isVisible = SpotifyNowPlayingManager.isVisibleOnHome();
+        if (!isVisible && !isPreview) return;
 
-        String songTitle = hasTrack ? SpotifyNowPlayingManager.title : "Midnight City";
-        String songArtist = hasTrack ? SpotifyNowPlayingManager.artist : "M83 · Gerade läuft";
+        String songTitle = (isVisible && SpotifyNowPlayingManager.hasActiveTrack())
+                ? SpotifyNowPlayingManager.title : "Midnight City";
+        String songArtist = (isVisible && SpotifyNowPlayingManager.hasActiveTrack())
+                ? SpotifyNowPlayingManager.artist : "M83 · Gerade läuft";
         if (songArtist == null || songArtist.isEmpty()) {
             songArtist = "Spotify";
         }
-        Bitmap art = SpotifyNowPlayingManager.albumArt;
+        Bitmap art = isVisible ? SpotifyNowPlayingManager.albumArt : null;
 
         float s = config.spotScale / 100f;
-        float boxH = 80f * s;
-        float artSize = 56f * s;
+        float boxW = Math.max(240f, config.spotWidth * s);
+        float boxH = 84f * s;
+        float artSize = 58f * s;
         float padX = 14f * s;
-
-        textPaint.setTextSize(24f * s);
-        textPaint.setFakeBoldText(true);
-        String cleanTitle = ellipsize(songTitle, 360f * s);
-        float titleW = textPaint.measureText(cleanTitle);
-
-        textPaint.setTextSize(18f * s);
-        textPaint.setFakeBoldText(false);
-        String cleanArtist = ellipsize(songArtist, 360f * s);
-        float artistW = textPaint.measureText(cleanArtist);
-
-        float textW = Math.max(titleW, artistW);
-        float boxW = padX + artSize + 14f * s + textW + padX * 1.5f;
 
         float minX = 64f;
         float maxX = Math.max(minX, 1856f - boxW);
@@ -507,7 +508,7 @@ public class NativeHomeView extends View {
         float top = minY + (maxY - minY) * ((config.spotPosY - 5f) / 90f);
 
         spotWidgetRect.set(left, top, left + boxW, top + boxH);
-        float radius = boxH * 0.42f;
+        float radius = boxH * 0.40f;
 
         if (!"off".equals(config.spotglass)) {
             drawGlassBox(canvas, spotWidgetRect, radius, "apple".equals(config.spotglass));
@@ -537,21 +538,47 @@ public class NativeHomeView extends View {
                     artLeft + artSize * 0.5f, artTop + artSize * 0.5f, artSize, inkColor, textPaint, strokePaint);
         }
 
-        // Draw Title & Artist
+        // Text & Progress Bar layout
         float textStartX = artLeft + artSize + 14f * s;
-        textPaint.setColor(inkColor);
-        textPaint.setTextSize(24f * s);
+        float maxTextW = Math.max(60f, (left + boxW - padX) - textStartX);
+
+        // Title
+        textPaint.setTextSize(22f * s);
         textPaint.setFakeBoldText(true);
+        String cleanTitle = ellipsize(songTitle, maxTextW);
+        textPaint.setColor(inkColor);
         Paint.FontMetrics tfm = textPaint.getFontMetrics();
-        float titleY = top + boxH * 0.44f - (tfm.ascent + tfm.descent) * 0.5f;
+        float titleY = top + 27f * s - (tfm.ascent + tfm.descent) * 0.5f;
         canvas.drawText(cleanTitle, textStartX, titleY, textPaint);
 
-        textPaint.setColor(muteColor);
-        textPaint.setTextSize(18f * s);
+        // Artist
+        textPaint.setTextSize(16f * s);
         textPaint.setFakeBoldText(false);
+        String cleanArtist = ellipsize(songArtist, maxTextW);
+        textPaint.setColor(muteColor);
         Paint.FontMetrics afm = textPaint.getFontMetrics();
-        float artistY = top + boxH * 0.76f - (afm.ascent + afm.descent) * 0.5f;
+        float artistY = top + 49f * s - (afm.ascent + afm.descent) * 0.5f;
         canvas.drawText(cleanArtist, textStartX, artistY, textPaint);
+
+        // Progress Bar
+        float barX = textStartX;
+        float barY = top + 67f * s;
+        float barW = maxTextW;
+        float barH = 3.5f * s;
+        float barRadius = barH * 0.5f;
+
+        spotBarBgRect.set(barX, barY, barX + barW, barY + barH);
+        paint.setShader(null);
+        paint.setColor(isLightBg() ? 0x22000000 : 0x2affffff);
+        canvas.drawRoundRect(spotBarBgRect, barRadius, barRadius, paint);
+
+        float progress = isPreview ? 0.42f : SpotifyNowPlayingManager.getProgressFraction();
+        if (progress > 0.005f) {
+            float activeW = Math.max(barH, barW * Math.min(1.0f, progress));
+            spotBarActiveRect.set(barX, barY, barX + activeW, barY + barH);
+            paint.setColor(isLightBg() ? 0xff168a3f : 0xff1ed760);
+            canvas.drawRoundRect(spotBarActiveRect, barRadius, barRadius, paint);
+        }
     }
 
     private void drawTopBar(Canvas canvas, int inkColor, int muteColor) {
@@ -1149,7 +1176,7 @@ public class NativeHomeView extends View {
                 + " · Dock " + config.dockScale + "% · Icons " + config.iconScale + "%";
         String appsCount = config.homeApps.size() + " Apps (Hinzufügen / Entfernen)";
         String spotStatus = ("on".equals(config.spotifywidget) ? "Aktiv" : "Aus")
-                + " · Größe " + config.spotScale + "% · Pos " + config.spotPosX + "%/" + config.spotPosY + "%";
+                + " · " + config.spotWidth + "px · " + config.spotScale + "% · Pos " + config.spotPosX + "%/" + config.spotPosY + "%";
         String ramStatus = activity.getRamStatusText();
 
         return new String[][]{
@@ -1378,15 +1405,18 @@ public class NativeHomeView extends View {
             list.add(new DetailRowSpec("Spotify „Gerade läuft“ auf Homescreen", "spotifywidget",
                     new String[]{"on", "off"},
                     new String[]{"Aktiv (Anzeigen wenn Musik läuft)", "Aus"}));
+            list.add(new DetailRowSpec("Widget-Breite (◄ Schmaler / Breiter ►)", "slider.spotWidth",
+                    260, 650, config.spotWidth,
+                    config.spotWidth + "px"));
+            list.add(new DetailRowSpec("Widget-Größe (◄ Kleiner / Größer ►)", "slider.spotScale",
+                    50, 160, config.spotScale,
+                    config.spotScale == 100 ? "100% (Standard)" : config.spotScale + "%"));
             list.add(new DetailRowSpec("Horizontale Position (X-Achse  ·  ◄ Links / Rechts ►)", "slider.spotPosX",
                     0, 100, config.spotPosX,
                     config.spotPosX + "%"));
             list.add(new DetailRowSpec("Vertikale Position (Y-Achse  ·  ◄ Hoch / Runter ►)", "slider.spotPosY",
                     5, 95, config.spotPosY,
                     config.spotPosY + "%"));
-            list.add(new DetailRowSpec("Widget-Größe (◄ Kleiner / Größer ►)", "slider.spotScale",
-                    50, 160, config.spotScale,
-                    config.spotScale == 100 ? "100% (Standard)" : config.spotScale + "%"));
             list.add(new DetailRowSpec("Hintergrund-Stil", "spotglass",
                     new String[]{"apple", "frost", "off"},
                     new String[]{"Apple Glas (Wölbung)", "Glas (Flach)", "Ohne Hintergrund"}));
@@ -1933,6 +1963,8 @@ public class NativeHomeView extends View {
                     config.iconScale = Math.max(50, Math.min(150, config.iconScale + dir * 5));
                 } else if ("slider.clockScale".equals(cur.axis)) {
                     config.clockScale = Math.max(50, Math.min(250, config.clockScale + dir * 5));
+                } else if ("slider.spotWidth".equals(cur.axis)) {
+                    config.spotWidth = Math.max(260, Math.min(650, config.spotWidth + dir * 20));
                 } else if ("slider.spotPosX".equals(cur.axis)) {
                     config.spotPosX = Math.max(0, Math.min(100, config.spotPosX + dir * 2));
                 } else if ("slider.spotPosY".equals(cur.axis)) {
@@ -2118,6 +2150,7 @@ public class NativeHomeView extends View {
                     else if ("slider.clockScale".equals(spec.axis)) config.clockScale = 100;
                     else if ("slider.spotPosX".equals(spec.axis)) config.spotPosX = 88;
                     else if ("slider.spotPosY".equals(spec.axis)) config.spotPosY = 18;
+                    else if ("slider.spotWidth".equals(spec.axis)) config.spotWidth = 380;
                     else if ("slider.spotScale".equals(spec.axis)) config.spotScale = 100;
                     config.save(activity);
                     focusInitialized = false;

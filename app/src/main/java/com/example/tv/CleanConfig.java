@@ -85,6 +85,7 @@ public class CleanConfig {
     public int spotPosX = 88;             // 0..100 (default 88 = rechts)
     public int spotPosY = 18;             // 5..95 (default 18 = oben unter Utilities)
     public int spotScale = 100;           // 50..160 (100 = 100%)
+    public int spotWidth = 380;           // 260..650 (default 380 px)
     public String spotglass = "apple";    // apple (Apple 3D Glas), frost (Flaches Glas), off (Ohne Box)
 
     public final List<String> homeApps = new ArrayList<>();
@@ -122,6 +123,7 @@ public class CleanConfig {
         c.spotPosX = clamp(sp.getInt("spotPosX", 88), 0, 100);
         c.spotPosY = clamp(sp.getInt("spotPosY", 18), 5, 95);
         c.spotScale = clamp(sp.getInt("spotScale", 100), 50, 160);
+        c.spotWidth = clamp(sp.getInt("spotWidth", 380), 260, 650);
         c.spotglass = sp.getString("spotglass", "apple");
 
         String homeJson = sp.getString("homeApps", null);
@@ -177,6 +179,7 @@ public class CleanConfig {
         ed.putInt("spotPosX", spotPosX);
         ed.putInt("spotPosY", spotPosY);
         ed.putInt("spotScale", spotScale);
+        ed.putInt("spotWidth", spotWidth);
         ed.putString("spotglass", spotglass);
 
         JSONArray arr = new JSONArray();
