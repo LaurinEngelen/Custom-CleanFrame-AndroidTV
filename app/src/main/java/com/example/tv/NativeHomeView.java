@@ -512,10 +512,6 @@ public class NativeHomeView extends View {
 
         if (!"off".equals(config.spotglass)) {
             drawGlassBox(canvas, spotWidgetRect, radius, "apple".equals(config.spotglass));
-        } else {
-            paint.setShader(null);
-            paint.setColor(isLightBg() ? 0x22000000 : 0x33000000);
-            canvas.drawRoundRect(spotWidgetRect, radius, radius, paint);
         }
 
         // Draw album art on the left
@@ -540,7 +536,8 @@ public class NativeHomeView extends View {
 
         // Text & Progress Bar layout
         float textStartX = artLeft + artSize + 14f * s;
-        float maxTextW = Math.max(60f, (left + boxW - padX) - textStartX);
+        float rightMargin = 26f * s;
+        float maxTextW = Math.max(60f, (left + boxW - rightMargin) - textStartX);
 
         // Title
         textPaint.setTextSize(22f * s);
@@ -563,7 +560,7 @@ public class NativeHomeView extends View {
         // Progress Bar
         float barX = textStartX;
         float barY = top + 67f * s;
-        float barW = maxTextW;
+        float barW = Math.max(40f, (left + boxW - rightMargin) - barX);
         float barH = 3.5f * s;
         float barRadius = barH * 0.5f;
 

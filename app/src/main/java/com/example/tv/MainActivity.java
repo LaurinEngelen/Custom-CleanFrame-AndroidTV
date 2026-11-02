@@ -61,6 +61,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         TvInputHelper.ensureGlobalKeyWatcherStarted(this);
+        ensureCastReceiverStarted();
         SpotifyKeepAwakeManager.init(this);
         SpotifyNowPlayingManager.init(this);
         SpotifyNowPlayingManager.setUpdateCallback(() -> {
@@ -508,11 +509,20 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        ensureCastReceiverStarted();
         SpotifyNowPlayingManager.refreshSessions(this);
         if (homeView != null) {
             homeView.requestFocus();
             homeView.resetIdleTimer();
             homeView.invalidate();
         }
+    }
+
+    private void ensureCastReceiverStarted() {
+        try {
+            Intent castIntent = new Intent();
+            castIntent.setClassName("com.google.android.apps.mediashell", "com.google.android.apps.mediashell.MediaShellCastReceiverService");
+            startService(castIntent);
+        } catch (Throwable ignored) {}
     }
 }
