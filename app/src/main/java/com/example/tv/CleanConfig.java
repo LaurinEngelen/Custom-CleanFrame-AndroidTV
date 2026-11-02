@@ -80,6 +80,13 @@ public class CleanConfig {
     public String autostart = "on";      // on (start CleanScreen immediately on TV boot), off
     public String spotifyscreensaver = "on"; // on (keep screen awake when Spotify plays music), off
 
+    // Spotify Now Playing Widget options
+    public String spotifywidget = "on";   // on, off
+    public int spotPosX = 88;             // 0..100 (default 88 = rechts)
+    public int spotPosY = 18;             // 5..95 (default 18 = oben unter Utilities)
+    public int spotScale = 100;           // 50..160 (100 = 100%)
+    public String spotglass = "apple";    // apple (Apple 3D Glas), frost (Flaches Glas), off (Ohne Box)
+
     public final List<String> homeApps = new ArrayList<>();
 
     public static CleanConfig load(Context ctx) {
@@ -111,6 +118,11 @@ public class CleanConfig {
         c.clocktitle = sp.getString("clocktitle", "on");
         c.autostart = sp.getString("autostart", "on");
         c.spotifyscreensaver = sp.getString("spotifyscreensaver", "on");
+        c.spotifywidget = sp.getString("spotifywidget", "on");
+        c.spotPosX = clamp(sp.getInt("spotPosX", 88), 0, 100);
+        c.spotPosY = clamp(sp.getInt("spotPosY", 18), 5, 95);
+        c.spotScale = clamp(sp.getInt("spotScale", 100), 50, 160);
+        c.spotglass = sp.getString("spotglass", "apple");
 
         String homeJson = sp.getString("homeApps", null);
         if (homeJson != null) {
@@ -161,6 +173,11 @@ public class CleanConfig {
         ed.putString("clocktitle", clocktitle);
         ed.putString("autostart", autostart);
         ed.putString("spotifyscreensaver", spotifyscreensaver);
+        ed.putString("spotifywidget", spotifywidget);
+        ed.putInt("spotPosX", spotPosX);
+        ed.putInt("spotPosY", spotPosY);
+        ed.putInt("spotScale", spotScale);
+        ed.putString("spotglass", spotglass);
 
         JSONArray arr = new JSONArray();
         for (String pkg : homeApps) {

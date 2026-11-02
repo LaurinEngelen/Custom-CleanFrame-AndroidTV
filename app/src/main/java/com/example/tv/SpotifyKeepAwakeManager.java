@@ -23,6 +23,8 @@ public class SpotifyKeepAwakeManager {
     private PowerManager.WakeLock wakeLock;
     private boolean isMonitoring = false;
 
+    private long lastWakeLockRefreshMs = 0L;
+
     private final Runnable checkRunnable = new Runnable() {
         @Override
         public void run() {
@@ -37,6 +39,12 @@ public class SpotifyKeepAwakeManager {
         if (instance == null && context != null) {
             instance = new SpotifyKeepAwakeManager(context.getApplicationContext());
             instance.startMonitoring();
+        }
+    }
+
+    public static void onForegroundPackageChanged(String pkg) {
+        if (instance != null) {
+            instance.evaluateState();
         }
     }
 
@@ -94,7 +102,7 @@ public class SpotifyKeepAwakeManager {
             boolean isSpotifyTop = isSpotifyForeground();
             boolean isPlaying = audioManager != null && audioManager.isMusicActive();
 
-            if (isSpotifyTop && isPlaying) {
+            if (isSpotifyTop || (isPlaying && SPOTIFY_PKG.equals(TvKeyAccessibilityService.activeForegroundPkg))) {
                 acquireWakeLock();
             } else {
                 releaseWakeLock();
@@ -103,26 +111,21 @@ public class SpotifyKeepAwakeManager {
     }
 
     private boolean isSpotifyForeground() {
-        try {
-            if (activityManager != null) {
-                List<ActivityManager.RunningAppProcessInfo> processes = activityManager.getRunningAppProcesses();
-                if (processes != null) {
-                    for (ActivityManager.RunningAppProcessInfo proc : processes) {
-                        if (SPOTIFY_PKG.equals(proc.processName)
-                                && proc.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        } catch (Throwable ignored) {}
-        return false;
+        return SPOTIFY_PKG.equals(TvKeyAccessibilityService.activeForegroundPkg);
     }
 
     private synchronized void acquireWakeLock() {
         try {
-            if (wakeLock != null && !wakeLock.isHeld()) {
-                wakeLock.acquire();
+            long now = System.currentTimeMillis();
+            if (wakeLock != null) {
+                if (!wakeLock.isHeld()) {
+                    wakeLock.acquire(180000L);
+                    lastWakeLockRefreshMs = now;
+                } else if (now - lastWakeLockRefreshMs > 30000L) {
+                    // Periodic renewal every 30s to keep Android TV activity timer awake
+                    wakeLock.acquire(180000L);
+                    lastWakeLockRefreshMs = now;
+                }
             }
         } catch (Throwable ignored) {}
     }
@@ -132,6 +135,7 @@ public class SpotifyKeepAwakeManager {
             if (wakeLock != null && wakeLock.isHeld()) {
                 wakeLock.release();
             }
+            lastWakeLockRefreshMs = 0L;
         } catch (Throwable ignored) {}
     }
 }

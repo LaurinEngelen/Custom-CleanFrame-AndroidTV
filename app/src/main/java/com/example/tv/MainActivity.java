@@ -62,6 +62,12 @@ public class MainActivity extends Activity {
 
         TvInputHelper.ensureGlobalKeyWatcherStarted(this);
         SpotifyKeepAwakeManager.init(this);
+        SpotifyNowPlayingManager.init(this);
+        SpotifyNowPlayingManager.setUpdateCallback(() -> {
+            if (homeView != null) {
+                homeView.postInvalidateOnAnimation();
+            }
+        });
 
         config = CleanConfig.load(this);
         ensureDefaultFallbackEntries();
@@ -346,6 +352,8 @@ public class MainActivity extends Activity {
                         "com.xiaomi.floatingframe",
                         "com.mediatek.tvinput",
                         "com.google.android.backdrop",
+                        "com.google.android.apps.mediashell",
+                        "com.google.android.gms",
                         "com.android.tv.settings"
                 ));
 
@@ -500,6 +508,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        SpotifyNowPlayingManager.refreshSessions(this);
         if (homeView != null) {
             homeView.requestFocus();
             homeView.resetIdleTimer();

@@ -22,6 +22,9 @@ public class TvKeyAccessibilityService extends AccessibilityService {
 
     private static final String SPOTIFY_PKG = "com.spotify.tv.android";
     private static final String BACKDROP_PKG = "com.google.android.backdrop";
+    private static final String CAST_PKG = "com.google.android.apps.mediashell";
+
+    public static volatile String activeForegroundPkg = "";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private WindowManager windowManager;
@@ -95,10 +98,28 @@ public class TvKeyAccessibilityService extends AccessibilityService {
             if (pkg != null) {
                 String newPkg = pkg.toString();
 
-                // If Google Screensaver tries to open while Spotify is actively playing
+                // Ignore self overlays, SystemUI (volume bar, toasts), Android core, and input methods
+                if ("com.example.tv".equals(newPkg)
+                        || "com.android.systemui".equals(newPkg)
+                        || "android".equals(newPkg)
+                        || newPkg.startsWith("com.google.android.inputmethod")) {
+                    return;
+                }
+
+                // If Google Cast / Chromecast built-in opens, immediately remove any overlay to give Cast full hardware plane access
+                if (CAST_PKG.equals(newPkg)) {
+                    currentForegroundPackage = newPkg;
+                    activeForegroundPkg = newPkg;
+                    handler.removeCallbacks(musicPollRunnable);
+                    applyKeepAwake(false);
+                    return;
+                }
+
+                // If Google Screensaver (Backdrop) tries to open while Spotify was in foreground
                 if (BACKDROP_PKG.equals(newPkg) && SPOTIFY_PKG.equals(currentForegroundPackage)) {
                     CleanConfig config = CleanConfig.load(this);
-                    if ("on".equals(config.spotifyscreensaver) && isSpotifyMusicActive()) {
+                    if ("on".equals(config.spotifyscreensaver)) {
+                        performGlobalAction(GLOBAL_ACTION_BACK);
                         wakeUpAndRestoreSpotify();
                         applyKeepAwake(true);
                         return;
@@ -106,6 +127,10 @@ public class TvKeyAccessibilityService extends AccessibilityService {
                 }
 
                 currentForegroundPackage = newPkg;
+                activeForegroundPkg = newPkg;
+                SpotifyKeepAwakeManager.init(this);
+                SpotifyKeepAwakeManager.onForegroundPackageChanged(newPkg);
+
                 if (SPOTIFY_PKG.equals(currentForegroundPackage)) {
                     handler.removeCallbacks(musicPollRunnable);
                     handler.post(musicPollRunnable);
@@ -137,9 +162,7 @@ public class TvKeyAccessibilityService extends AccessibilityService {
             }
 
             boolean isSpotify = SPOTIFY_PKG.equals(currentForegroundPackage);
-            boolean isPlaying = isSpotifyMusicActive();
-
-            applyKeepAwake(isSpotify && isPlaying);
+            applyKeepAwake(isSpotify);
         } catch (Throwable ignored) {}
     }
 
